@@ -2802,6 +2802,7 @@ pub struct Tab {
     pub(crate) items_opt: Option<Vec<Item>>,
     pub dnd_hovered: Option<(Location, Instant)>,
     pub(crate) scrollable_id: widget::Id,
+    select_rect: Option<Rectangle>,
     select_focus: Option<usize>,
     select_range: Option<(usize, usize)>,
     clicked: Option<usize>,
@@ -2948,6 +2949,7 @@ impl Tab {
             parent_item_opt: None,
             items_opt: None,
             scrollable_id,
+            select_rect: None,
             select_focus: None,
             select_range: None,
             clicked: None,
@@ -3251,21 +3253,88 @@ impl Tab {
         found
     }
 
+    pub fn highlight_rect(&mut self, rect: Rectangle, mod_ctrl: bool, mod_shift: bool) {
+        if let Some(ref mut items) = self.items_opt {
+            for item in items.iter_mut() {
+                let was_overlapped = item.overlaps_drag_rect;
+                let is_overlapped = item.rect_opt.get().is_some_and(|r| r.intersects(&rect));
+                
+                // Drag rectangle inverts the current selection
+                if mod_ctrl && mod_shift {
+                    if is_overlapped {
+                        item.highlighted = if was_overlapped {
+                            !item.highlighted
+                        } else {
+                            item.highlighted
+                        };
+                    }
+                }
+
+                // Drag rectangle only removes from current selection
+                else if mod_ctrl {
+                    item.highlighted = if was_overlapped && is_overlapped {
+                        false
+                    } else {
+                        item.highlighted
+                    };
+                }
+
+                // Drag rectangle only adds to current selection
+                else if mod_shift {
+                    item.highlighted = if was_overlapped || is_overlapped {
+                        true
+                    } else {
+                        item.highlighted
+                    };
+                }
+                
+                // Reset selection to the new drag rectangle
+                else {
+                    item.highlighted = is_overlapped;
+                }
+            }
+        }
+    }
+
     pub fn select_rect(&mut self, rect: Rectangle, mod_ctrl: bool, mod_shift: bool) {
         if let Some(ref mut items) = self.items_opt {
             for item in items.iter_mut() {
                 let was_overlapped = item.overlaps_drag_rect;
-                item.overlaps_drag_rect = item.rect_opt.get().is_some_and(|r| r.intersects(&rect));
-
-                item.selected = if mod_ctrl || mod_shift {
-                    if was_overlapped == item.overlaps_drag_rect {
-                        item.selected
-                    } else {
-                        !item.selected
+                let is_overlapped = item.rect_opt.get().is_some_and(|r| r.intersects(&rect));
+                
+                // Drag rectangle inverts the current selection
+                if mod_ctrl && mod_shift {
+                    if is_overlapped {
+                        item.selected = if was_overlapped {
+                            !item.selected
+                        } else {
+                            item.selected
+                        };
                     }
-                } else {
-                    item.overlaps_drag_rect
-                };
+                }
+
+                // Drag rectangle only removes from current selection
+                else if mod_ctrl {
+                    item.selected = if was_overlapped && is_overlapped {
+                        false
+                    } else {
+                        item.selected
+                    };
+                }
+
+                // Drag rectangle only adds to current selection
+                else if mod_shift {
+                    item.selected = if was_overlapped || is_overlapped {
+                        true
+                    } else {
+                        item.selected
+                    };
+                }
+                
+                // Reset selection to the new drag rectangle
+                else {
+                    item.selected = is_overlapped;
+                }
             }
         }
     }
@@ -3549,19 +3618,43 @@ impl Tab {
                     }
                 }
 
+                // Select items on click and drag release
                 if click_i_opt != self.clicked.take() {
                     self.context_menu = None;
                     self.location_context_menu_index = None;
                     if let Some(ref mut items) = self.items_opt {
                         for (i, item) in items.iter_mut().enumerate() {
+                            // De-select selected items
                             if mod_ctrl {
                                 if Some(i) == click_i_opt && item.selected {
                                     item.selected = false;
-                                    self.select_range = None;
+                                    // self.select_range = None;
                                 }
-                            } else if Some(i) != click_i_opt {
+                            }
+
+                            // Add additional items to the selected range
+                            else if mod_shift {
+                                if Some(i) == click_i_opt && !item.selected {
+                                    item.selected = true;
+                                }
+                            }
+                            
+                            // Deselect items outside of the new range/item
+                            else if Some(i) != click_i_opt {
                                 item.selected = false;
                             }
+                        }
+
+                        // If no selected items anymore then clear the range
+                        let mut any_selected = false;
+                        for (_, item) in items.iter_mut().enumerate() {
+                            if item.selected {
+                                any_selected = true;
+                                break;
+                            }
+                        }
+                        if !any_selected {
+                            self.select_range = None;
                         }
                     }
                 }
@@ -3569,6 +3662,16 @@ impl Tab {
             Message::DragEnd => {
                 self.clicked = None;
                 self.watch_drag = true;
+                if let Some(rect) = self.select_rect {
+                    if self.mode.multiple() {
+                        self.select_rect(rect, mod_ctrl, mod_shift);
+                    }
+                    if let Some(ref mut items) = self.items_opt {
+                        for (_, item) in items.iter_mut().enumerate() {
+                            item.overlaps_drag_rect = item.rect_opt.get().is_some_and(|r| r.intersects(&rect));
+                        }
+                    }
+                }
             }
             Message::DoubleClick(click_i_opt) => {
                 if let Some(clicked_item) = self
@@ -3827,7 +3930,7 @@ impl Tab {
                     self.context_menu = None;
                     self.location_context_menu_index = None;
                     if self.mode.multiple() {
-                        self.select_rect(rect, mod_ctrl, mod_shift);
+                        self.highlight_rect(rect, mod_ctrl, mod_shift);
                     }
                     if self.select_focus.take().is_some() {
                         // Unfocus currently focused button
@@ -3836,6 +3939,7 @@ impl Tab {
                         ));
                     }
                 }
+                self.select_rect = rect_opt;
             }
             Message::EditLocation(edit_location) => {
                 self.edit_location = edit_location;
