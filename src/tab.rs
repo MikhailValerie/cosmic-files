@@ -2726,11 +2726,19 @@ impl Item {
     }
 }
 
+#[derive(Clone, Debug)]
+pub enum ScrollDirection {
+    Vertical,
+    Horizontal,
+    Both,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub enum View {
     Grid,
     List,
 }
+
 #[derive(Clone, Copy, Debug, Hash, PartialEq, PartialOrd, Ord, Eq, Deserialize, Serialize)]
 pub enum HeadingOptions {
     Name = 0,
@@ -2812,6 +2820,7 @@ pub struct Tab {
     pub scroll_opt: Option<AbsoluteOffset>,
     pub size_opt: Cell<Option<Size>>,
     pub content_height_opt: Cell<Option<f32>>,
+    pub content_width_opt: Cell<Option<f32>>,
     pub viewport_opt: Option<Rectangle>,
     pub item_view_size_opt: Cell<Option<Size>>,
     pub edit_location: Option<EditLocation>,
@@ -2959,6 +2968,7 @@ impl Tab {
             scroll_opt: None,
             size_opt: Cell::new(None),
             content_height_opt: Cell::new(None),
+            content_width_opt: Cell::new(None),
             viewport_opt: None,
             item_view_size_opt: Cell::new(None),
             edit_location: None,
@@ -3315,23 +3325,54 @@ impl Tab {
         }
     }
 
+    fn visible_rect(&self, scroll_dir: ScrollDirection) -> Rectangle {
+        // Get the size of the item view
+        let size = self
+            .item_view_size_opt
+            .get()
+            .unwrap_or_else(|| Size::new(0.0, 0.0));
+
+        // Use cached content values to clamp scroll offset after resize
+        let max_scroll_x = self
+            .content_width_opt
+            .get()
+            .map(|cw| (cw - size.width as f32).max(0.0))
+            .unwrap_or(f32::MAX);
+        let max_scroll_y = self
+            .content_height_opt
+            .get()
+            .map(|ch| (ch - size.height as f32).max(0.0))
+            .unwrap_or(f32::MAX);
+
+        // Find the starting point for drawing the rectangle
+        let point = match self.scroll_opt {
+            Some(offset) => {
+                let (x, y) = match scroll_dir {
+                    ScrollDirection::Horizontal => (
+                        offset.x.min(max_scroll_x).max(0.0),
+                        0.0
+                    ),
+                    ScrollDirection::Vertical => (
+                        0.0,
+                        offset.y.min(max_scroll_y).max(0.0)
+                    ),
+                    ScrollDirection::Both => (
+                        offset.x.min(max_scroll_x).max(0.0),
+                        offset.y.min(max_scroll_y).max(0.0)
+                    ),
+                };
+                Point::new(x, y)
+            },
+            None => Point::new(0.0, 0.0),
+        };
+        Rectangle::new(point, size)
+    }
+
     pub(crate) fn select_focus_scroll(&mut self) -> Option<AbsoluteOffset> {
         let items = self.items_opt.as_ref()?;
         let item = items.get(self.select_focus?)?;
         let rect = item.rect_opt.get()?;
-
-        //TODO: move to function
-        let visible_rect = {
-            let point = match self.scroll_opt {
-                Some(offset) => Point::new(0.0, offset.y),
-                None => Point::new(0.0, 0.0),
-            };
-            let size = self
-                .item_view_size_opt
-                .get()
-                .unwrap_or_else(|| Size::new(0.0, 0.0));
-            Rectangle::new(point, size)
-        };
+        let visible_rect = self.visible_rect(ScrollDirection::Vertical);
 
         if rect.y < visible_rect.y {
             // Scroll up to rect
@@ -5779,22 +5820,7 @@ impl Tab {
             rows_m1 + 1
         };
 
-        //TODO: move to function
-        let visible_rect = {
-            // Use cached content height to clamp scroll offset after resize
-            let max_scroll_y = self
-                .content_height_opt
-                .get()
-                .map(|ch| (ch - height as f32).max(0.0))
-                .unwrap_or(f32::MAX);
-            let scroll_y = self
-                .scroll_opt
-                .map(|o| o.y.min(max_scroll_y).max(0.0))
-                .unwrap_or(0.0);
-            let point = Point::new(0.0, scroll_y);
-            let size = self.size_opt.get().unwrap_or_else(|| Size::new(0.0, 0.0));
-            Rectangle::new(point, size)
-        };
+        let visible_rect = self.visible_rect(ScrollDirection::Vertical);
 
         let mut grid = widget::grid()
             .column_spacing(column_spacing)
@@ -5959,20 +5985,26 @@ impl Tab {
 
             column = column.push(grid);
 
-            //TODO: HACK If we don't reach the bottom of the view, go ahead and add a spacer to do that
+            //TODO: HACK If we don't reach the right of the view, go ahead and add a spacer to do that
             {
                 let mut max_bottom = 0;
+                let mut max_right = 0;
                 for (_, item) in items {
                     if let Some(rect) = item.rect_opt.get() {
                         let bottom = (rect.y + rect.height).ceil() as usize;
                         if bottom > max_bottom {
                             max_bottom = bottom;
                         }
+                        let right = (rect.x + rect.width).ceil() as usize;
+                        if right > max_right {
+                            max_right = right;
+                        }
                     }
                 }
 
                 // Cache content height for scroll clamping on next frame
                 self.content_height_opt.set(Some(max_bottom as f32));
+                self.content_width_opt.set(Some(max_right as f32));
 
                 let top_deduct = 7 * (space_xxs as usize);
 
@@ -6104,23 +6136,7 @@ impl Tab {
         let mut y: f32 = 0.0;
 
         let rule_padding = theme::active().cosmic().corner_radii.radius_xs[0] as u16;
-
-        //TODO: move to function
-        let visible_rect = {
-            // Use cached content height to clamp scroll offset after resize
-            let max_scroll_y = self
-                .content_height_opt
-                .get()
-                .map(|ch| (ch - size.height).max(0.0))
-                .unwrap_or(f32::MAX);
-            let scroll_y = self
-                .scroll_opt
-                .map(|o| o.y.min(max_scroll_y).max(0.0))
-                .unwrap_or(0.0);
-            let point = Point::new(0.0, scroll_y);
-            let size = self.size_opt.get().unwrap_or_else(|| Size::new(0.0, 0.0));
-            Rectangle::new(point, size)
-        };
+        let visible_rect = self.visible_rect(ScrollDirection::Vertical);
 
         let mut drag_items = Vec::new();
         if let Some(items) = self.column_sort() {
@@ -6435,6 +6451,7 @@ impl Tab {
 
             // Cache content height for scroll clamping on next frame
             self.content_height_opt.set(Some(y));
+            self.content_width_opt.set(Some(0.0));
         }
         //TODO: HACK If we don't reach the bottom of the view, go ahead and add a spacer to do that
         {
@@ -6983,15 +7000,7 @@ impl Tab {
         let mut subscriptions = Vec::with_capacity(jobs + 3);
 
         if let Some(items) = &self.items_opt {
-            //TODO: move to function
-            let visible_rect = {
-                let point = match self.scroll_opt {
-                    Some(offset) => Point::new(0.0, offset.y),
-                    None => Point::new(0.0, 0.0),
-                };
-                let size = self.size_opt.get().unwrap_or_else(|| Size::new(0.0, 0.0));
-                Rectangle::new(point, size)
-            };
+            let visible_rect = self.visible_rect(ScrollDirection::Vertical);
 
             // Count the children of visible directories in the background. Doing it while
             // scanning costs one directory listing per entry, which stalls remote filesystems.
