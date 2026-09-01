@@ -4346,6 +4346,8 @@ impl Application for App {
             }
             Message::RestoreFromTrash(entity_opt) => {
                 let mut trash_items = Vec::new();
+                let mut existing_items = Vec::new();
+                let mut err_items = Vec::new();
                 let entity = entity_opt.unwrap_or_else(|| self.tab_model.active());
                 if let Some(tab) = self.tab_model.data_mut::<Tab>(entity)
                     && let Some(items) = tab.items_opt()
@@ -4353,14 +4355,23 @@ impl Application for App {
                     for item in items {
                         if item.selected {
                             if let ItemMetadata::Trash { entry, .. } = &item.metadata {
-                                trash_items.push(entry.clone());
+                                if !fs::exists(entry.clone()) {
+                                    existing_items.push(entry.clone());
+                                } else {
+                                    trash_items.push(entry.clone());
+
+                                }
                             } else {
                                 //TODO: error on trying to restore non-trash file?
+                                err_items.push(entry.clone());
                             }
                         }
                     }
                 }
-                if !trash_items.is_empty() {
+                if !err_items.is_empty() || !existing_items.is_empty() {
+
+                }
+                else if !trash_items.is_empty() {
                     return self.operation(Operation::Restore { items: trash_items });
                 }
             }
@@ -6253,6 +6264,28 @@ impl Application for App {
                         ])
                         .spacing(space_xxs),
                     )
+            }
+            DialogPage::RestoreTrashAlreadyExists { items } => {
+                let target = if items.len() == 1 {
+                    format!("\"{}\"", items[0].name.to_string_lossy())
+                } else {
+                    fl!("selected-items", items = items.len())
+                };
+
+                widget::dialog()
+                    .title(fl!("restore-trash-exists-question"))
+                    .primary_action(
+                        widget::button::destructive(fl!("ok"))
+                            .on_press(Message::DialogComplete)
+                            .id(DELETE_TRASH_BUTTON_ID.clone()),
+                    )
+                    .secondary_action(
+                        widget::button::standard(fl!("cancel")).on_press(Message::DialogCancel),
+                    )
+                    .control(widget::text(fl!(
+                        "permanently-delete-warning",
+                        target = target
+                    )))
             }
             DialogPage::RenameItem {
                 from,
