@@ -4307,24 +4307,89 @@ impl Application for App {
                 }
             }
             Message::RestoreFromTrash(entity_opt) => {
+                let mut tasks = Vec::new();
                 let mut trash_items = Vec::new();
+                let mut existing_items = Vec::new();
+                let mut err_items = Vec::new();
                 let entity = entity_opt.unwrap_or_else(|| self.tab_model.active());
+\
+                // Self::Restore { items } => {
+                //     let total = items.len();
+                //     let mut paths = Vec::with_capacity(total);
+                //     for (i, item) in items.into_iter().enumerate() {
+                //         controller
+                //             .check()
+                //             .await
+                //             .map_err(|s| OperationError::from_state(s, &controller))?;
+
+                //         controller.set_progress((i as f32) / (total as f32));
+
+                //         paths.push(item.original_path());
+
+                //         // Items with .trashinfo id use standard restore; sub-items use manual move
+                //         if item
+                //             .id
+                //             .to_str()
+                //             .map_or(false, |s| s.ends_with(".trashinfo"))
+                //         {
+                //             compio::runtime::spawn_blocking(|| trash::os_limited::restore_all([item]))
+                //                 .await
+                //                 .map_err(wrap_compio_spawn_error)?
+                //                 .map_err(|e| OperationError::from_err(e, &controller))?;
+                //         } else {
+                //             let from = PathBuf::from(&item.id);
+                //             let to = item.original_path();
+                //             if let Some(parent) = to.parent() {
+                //                 std::fs::create_dir_all(parent)
+                //                     .map_err(|e| OperationError::from_err(e, &controller))?;
+                //             }
+                //             std::fs::rename(&from, &to)
+                //                 .map_err(|e| OperationError::from_err(e, &controller))?;
+                //         }
+                //     }
+                //     Ok(OperationSelection {
+                //         ignored: Vec::new(),
+                //         selected: paths,
+                //     })
+                // }
+                
                 if let Some(tab) = self.tab_model.data_mut::<Tab>(entity)
                     && let Some(items) = tab.items_opt()
                 {
                     for item in items {
-                        if item.selected {
-                            if let ItemMetadata::Trash { entry, .. } = &item.metadata {
-                                trash_items.push(entry.clone());
+                        if !item.selected {
+                            continue;
+                        }
+                        if let ItemMetadata::Trash { entry, .. } = &item.metadata {
+                            if !fs::exists(entry.clone()) {
+                                existing_items.push(entry.clone());
                             } else {
-                                //TODO: error on trying to restore non-trash file?
+                                trash_items.push(entry.clone());
+
                             }
+                        } else {
+                            //TODO: error on trying to restore non-trash file?
+                            err_items.push(entry.clone());
                         }
                     }
                 }
+
+                // Always restore the trash items that can be restored
                 if !trash_items.is_empty() {
-                    return self.operation(Operation::Restore { items: trash_items });
+                    tasks.push(self.operation(Operation::Restore { items: trash_items }));
                 }
+
+                // Prompt for items that would replace existing files when restored
+                if !existing_items.is_empty() {
+                    tasks.push(self.operation(Operation::Replace { items: existing_items }));
+                }
+
+                // TODO: Toast about failures with button to clean up orphaned trash files
+                if !err_items.is_empty() {
+                    tasks.push(self.operation(Operation::Toast()))
+                }
+
+                return Task::batch(tasks);
             }
             Message::ScrollTab(scroll_speed) => {
                 let entity = self.tab_model.active();
