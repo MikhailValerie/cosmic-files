@@ -6032,11 +6032,21 @@ impl Tab {
                 // Only build elements if visible (for performance)
                 if item_rect.intersects(&visible_rect) {
                     //TODO: one focus group per grid item (needs custom widget)
+                    let icon_container1 = widget::container(
+                        widget::icon::icon(item.icon_handle_grid.clone())
+                            .content_fit(ContentFit::Contain)
+                            .size(icon_sizes.grid())
+                    ).padding(padding::bottom(10).left(10));
+                    let icon_container2 = widget::container(
+                        icon::from_name("starred-symbolic")
+                    ).padding(padding::top(5).bottom(5).left(5).right(5));
+                    let stack = stack![icon_container1, icon_container2];
+
                     let mut buttons: Vec<Element<Message>> = vec![
                         widget::button::custom(
-                            widget::icon::icon(item.icon_handle_grid.clone())
-                                .content_fit(ContentFit::Contain)
-                                .size(icon_sizes.grid()),
+                            widget::container(stack)
+                                .center_x(Length::Fill)
+                                .max_height(icon_sizes.grid()),
                         )
                         .padding(space_xxxs)
                         .class(button_style(
