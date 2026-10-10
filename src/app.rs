@@ -1403,11 +1403,23 @@ impl App {
                     };
                 }
 
+                // Rescan Recents only if operation relates to Files
+                if !rescan_recents {   
+                    rescan_recents = match op {
+                        Operation::Delete { .. } => true,
+                        Operation::PermanentlyDelete { .. } => true,
+                        Operation::Restore { .. } => true,
+                        Operation::Move { .. } => true,
+                        _ => false,
+                    };
+                }
+
                 // If a favorite for a path has been renamed or moved, update it.
                 if let Operation::Rename { ref from, ref to } = op {
                     if self.update_favorites([(from, to)].as_slice()) {
                         update_config = true;
                     }
+                    rescan_recents = true;
                 } else if let Operation::Move {
                     ref paths, ref to, ..
                 } = op
@@ -1418,6 +1430,7 @@ impl App {
                         .collect();
                     if self.update_favorites(&path_changes) {
                         update_config = true;
+                        rescan_recents = true;
                     }
                 }
                 self.complete_operations.insert(id, op);
@@ -1433,14 +1446,6 @@ impl App {
         {
             self.progress_operations.clear();
         }
-        // Potentially show a notification
-        commands.push(self.update_notification());
-        // Rescan and select based on operation
-        commands.push(self.rescan_operation_selection(op_sel));
-        // Manually rescan any trash tabs after any operation is completed
-        commands.push(self.rescan_trash());
-        // Manually rescan any Recents tabs after any operation is completed
-        commands.push(self.rescan_recents());
 
         if update_config {
             tasks.push(self.update_config());

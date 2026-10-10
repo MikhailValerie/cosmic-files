@@ -5769,9 +5769,9 @@ impl Tab {
                 .show_drag_rect(self.mode.multiple())
                 .on_release(|_| Message::ClickRelease(None));
         }
-        if self.watch_drag {
-            mouse_area = mouse_area.on_drag(Message::Drag);
-        }
+        // if self.watch_drag {
+        //     mouse_area = mouse_area.on_drag(Some(Message::Drag));
+        // }
         mouse_area.into()
     }
 
