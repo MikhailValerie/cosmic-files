@@ -247,11 +247,7 @@ fn button_appearance(
         appearance.border_color = Color::from(cosmic.accent_color());
     }
 
-    if condensed_radius {
-        appearance.border_radius = cosmic.radius_xs().into();
-    } else {
-        appearance.border_radius = cosmic.radius_s().into();
-    }
+    appearance.border_radius = cosmic.radius_s().into();
     appearance
 }
 
@@ -6128,7 +6124,7 @@ impl Tab {
             (Rectangle::new(point, size), offset_rows as usize)
         };
 
-        let mut grid = widget::grid()
+let mut grid = widget::grid()
             .column_spacing(column_spacing)
             .row_spacing(grid_spacing)
             .padding(space_xxs.into());
@@ -6247,55 +6243,50 @@ impl Tab {
                     .align_top(Length::Fill)
                     .width(Length::Fixed(item_width as f32));
 
-                    let buttons: Vec<Element<Message>> = vec![
-                        widget::button::custom(
-                            widget::container(icon_stack)
-                                .center_x(Length::Fill)
-                                .max_height(icon_sizes.grid()),
-                        )
-                        .id(item.button_id.clone())
-                        .width(Length::Fill)
-                        .padding(space_xxxs)
-                        .class(button_style(
-                            item.selected,
-                            item.highlighted,
-                            item.cut,
-                            false,
-                            false,
-                            false,
-                        ))
-                        .into(),
-                        widget::tooltip(
-                            widget::button::custom(Item::grid_display_name(&item.display_name, 3))
-                                .id(item.button_id.clone())
-                                .padding([0, space_xxxs])
-                                .class(button_style(
-                                    item.selected,
-                                    item.highlighted,
-                                    item.cut,
-                                    true,
-                                    true,
-                                    matches!(self.mode, Mode::Desktop),
-                                )),
-                            widget::text::body(&item.name),
-                            widget::tooltip::Position::Bottom,
-                        )
-                        .into(),
-                    ];
+                    let contents = widget::column::with_children([
+                        Element::from(widget::container(item_icon)
+                            .center_x(Length::Fill)
+                            .max_height(icon_sizes.grid())
+                        ),
+                        Element::from(
+                            widget::container(widget::tooltip(
+                                Item::grid_display_name(&item.display_name, 3),
+                                widget::text::body(&item.display_name),
+                                widget::tooltip::Position::FollowCursor,
+                            ))
+                            .center_x(Length::Fill)
+                        ),
+                    ]);
 
-                    let mut column = widget::column::with_capacity(buttons.len())
-                        .align_x(Alignment::Center)
-                        .height(Length::Fixed(item_height as f32))
-                        .width(Length::Fixed(item_width as f32));
-                    for button in buttons {
-                        column = column.push(
-                            mouse_area::MouseArea::new(button)
-                                .on_right_press_no_capture()
-                                .on_right_press(move |point_opt| {
-                                    Message::RightClick(point_opt, Some(i))
-                                }),
-                        );
-                    }
+                    let contents = stack![
+                        contents,
+                        item_emblems,
+                    ];
+                    let button = |contents| {
+                        let mouse_area = crate::mouse_area::MouseArea::new(
+                            widget::container(
+                                widget::button::custom(contents)
+                                    .id(item.button_id.clone())
+                                    .height(Length::Shrink)
+                                    .width(Length::Fixed(item_width as f32))
+                                    .padding(0)
+                                    .class(button_style(
+                                        item.selected,
+                                        item.highlighted,
+                                        item.cut,
+                                        item.hidden,
+                                        true,
+                                        false,
+                                    )),
+                            )
+                            .height(Length::Fixed(item_height as f32))
+                        )
+                        .on_press(move |_| Message::Click(Some(i)))
+                        .on_double_click(move |_| Message::DoubleClick(Some(i)))
+                        .on_release(move |_| Message::ClickRelease(Some(i)))
+                        .on_middle_press(move |_| Message::MiddleClick(i))
+                        .on_enter(move || Message::HighlightActivate(i))
+                        .on_exit(move || Message::HighlightDeactivate(i));
 
                         mouse_area
                             .on_right_press_no_capture()
