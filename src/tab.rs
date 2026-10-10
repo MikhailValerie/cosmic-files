@@ -5171,7 +5171,7 @@ impl Tab {
         let count_emblem = if drag_item_icons.len() > 3 {
             widget::container(
                 widget::container(
-                    widget::text(drag_item_icons.len().to_string())
+                    widget::text(if drag_item_icons.len() > 99 { "99+".to_string() } else { drag_item_icons.len().to_string() })
                 )
                 .height(20)
                 .padding([space_xxxs, space_xs])
@@ -6019,7 +6019,7 @@ impl Tab {
             }
         }
 
-        let mut mouse_area = mouse_area::MouseArea::new(column.width(Length::Fill))
+        let mouse_area = mouse_area::MouseArea::new(column.width(Length::Fill))
             .on_press(|_| Message::Click(None))
             .on_auto_scroll(Message::AutoScroll)
             .on_drag(move |rect_opt| self.on_drag(rect_opt))
