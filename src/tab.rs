@@ -5721,6 +5721,30 @@ impl Tab {
                 HeadingOptions::Starred,
                 "starred-symbolic",
             ),);
+            // heading_cols.push(heading_item(
+            //     fl!("starred"),
+            //     Length::Fixed(starred_width.into()),
+            //     HeadingOptions::Starred,
+            //     "non-starred-symbolic",
+            // ),);
+            // heading_cols.push(heading_item(
+            //     fl!("starred"),
+            //     Length::Fixed(starred_width.into()),
+            //     HeadingOptions::Starred,
+            //     "",
+            // ),);
+            // heading_cols.push(heading_item(
+            //     fl!("star"),
+            //     Length::Fixed(starred_width.into()),
+            //     HeadingOptions::Starred,
+            //     "",
+            // ),);
+            // heading_cols.push(heading_item(
+            //     " ".to_string(),
+            //     Length::Fixed(starred_width.into()),
+            //     HeadingOptions::Starred,
+            //     "",
+            // ),);
         }
 
         let heading_row = widget::row::with_children(heading_cols)
