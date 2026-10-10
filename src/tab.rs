@@ -156,9 +156,7 @@ fn button_appearance(
     highlighted: bool,
     cut: bool,
     focused: bool,
-    accent: bool,
     hidden: bool,
-    desktop: bool,
 ) -> widget::button::Style {
     let cosmic = theme.cosmic();
     let mut appearance = widget::button::Style::new();
@@ -166,47 +164,38 @@ fn button_appearance(
     let mut icon_color = Color::from(cosmic.on_bg_component_color());
     let mut text_color = Color::from(cosmic.on_bg_component_color());
 
+    // Button is selected and highlighted (hover, etc)
+    if selected && (highlighted || focused) {
+        background = Color::from(cosmic.accent_color());
+        icon_color = Color::from(cosmic.on_accent_color());
+        text_color = Color::from(cosmic.on_accent_color());
+        background = background.scale_alpha(0.875);
+    }
+
     // Button is highlighted (hover, etc)
-    if highlighted {
+    else if highlighted {
         background = Color::from(cosmic.bg_component_color());
-        if accent {
-            background = Color::from(cosmic.accent_color());
-            icon_color = Color::from(cosmic.on_accent_color());
-            text_color = Color::from(cosmic.on_accent_color());
-        }
         background = background.scale_alpha(0.85);
     }
 
     // Button is selected
     else if selected {
-        background = Color::from(cosmic.bg_component_color());
-        if accent {
-            background = Color::from(cosmic.accent_color());
-            icon_color = Color::from(cosmic.on_accent_color());
-            text_color = Color::from(cosmic.on_accent_color());
-        }
-        background = background.scale_alpha(0.75);
+        background = Color::from(cosmic.accent_color());
+        icon_color = Color::from(cosmic.on_accent_color());
+        text_color = Color::from(cosmic.on_accent_color());
+        background = background.scale_alpha(0.625);
     }
 
-    // Button is an item on the desktop
-    else if desktop {
-        background = Color::from(cosmic.bg_color());
-        icon_color = Color::from(cosmic.on_bg_color());
-        text_color = Color::from(cosmic.on_bg_color());
-    }
-    
     // Visually indicate cut items
     if cut {
         let disabled_color = Color::from(
             cosmic.background(theme.transparent).component.on_disabled,
         );
-        if !accent {
-            background = Color::from(
-                cosmic.background(theme.transparent).component.disabled,
-            ).scale_alpha(0.1);
-            icon_color = disabled_color;
-            text_color = disabled_color;
-        }
+        background = Color::from(
+            cosmic.background(theme.transparent).component.disabled,
+        ).scale_alpha(0.2);
+        icon_color = disabled_color;
+        text_color = disabled_color;
         icon_color = icon_color.scale_alpha(0.8);
         text_color = text_color.scale_alpha(0.8);
         appearance.outline_width = 1.0;
@@ -247,14 +236,11 @@ fn button_appearance(
     appearance.icon_color = Some(icon_color);
     appearance.text_color = Some(text_color);
 
-    if focused && accent {
+    if focused {
         appearance.outline_width = 1.0;
         appearance.outline_color = Color::from(cosmic.accent_color());
         appearance.border_width = 2.0;
         appearance.border_color = Color::TRANSPARENT;
-    } else if focused {
-        appearance.border_width = 2.0;
-        appearance.border_color = Color::from(cosmic.accent_color());
     }
 
     appearance.border_radius = cosmic.radius_m().into();
@@ -266,8 +252,6 @@ fn button_style(
     highlighted: bool,
     cut: bool,
     hidden: bool,
-    accent: bool,
-    desktop: bool,
 ) -> theme::Button {
     //TODO: move to libcosmic?
     theme::Button::Custom {
@@ -278,9 +262,7 @@ fn button_style(
                 highlighted,
                 cut,
                 focused,
-                accent,
                 hidden,
-                desktop,
             )
         }),
         disabled: Box::new(move |theme| {
@@ -290,9 +272,7 @@ fn button_style(
                 highlighted,
                 cut,
                 false,
-                accent,
                 hidden,
-                desktop,
             )
         }),
         hovered: Box::new(move |focused, theme| {
@@ -302,9 +282,7 @@ fn button_style(
                 highlighted,
                 cut,
                 focused,
-                accent,
                 hidden,
-                desktop,
             )
         }),
         pressed: Box::new(move |focused, theme| {
@@ -314,9 +292,7 @@ fn button_style(
                 highlighted,
                 cut,
                 focused,
-                accent,
                 hidden,
-                desktop,
             )
         }),
     }
@@ -6066,34 +6042,31 @@ impl Tab {
         column.into()
     }
 
-    pub fn empty_view(&self, has_hidden: bool) -> Element<'_, Message> {
-        let cosmic_theme::Spacing { space_xxs, .. } = theme::spacing();
+    pub fn loading_view(&self) -> Element<'_, Message> {
+        let cosmic_theme::Spacing {
+            space_s,
+            space_xxs,
+            ..
+        } = theme::spacing();
+        let size = self.size_opt.get().unwrap_or_else(|| Size::new(100.0, 100.0));
         let mut mouse_area = mouse_area::MouseArea::new(
-            widget::column::with_children([
-                widget::container(
-                    match self.mode {
-                        Mode::App | Mode::Dialog(_) => widget::column::with_children([
-                            widget::icon::from_name("folder-symbolic")
-                                .size(64)
-                                .icon()
-                                .into(),
-                            widget::text::body(if has_hidden {
-                                fl!("empty-folder-hidden")
-                            } else if matches!(self.location, Location::Search(..)) {
-                                fl!("no-results")
-                            } else {
-                                fl!("empty-folder")
-                            })
+            widget::container(
+                match self.mode {
+                    Mode::App | Mode::Dialog(_) => widget::column::with_children([
+                        widget::icon::from_name("content-loading-symbolic")
+                            .size(64)
+                            .icon()
                             .into(),
-                        ]),
-                        Mode::Desktop => widget::column::with_capacity(0),
-                    }
-                    .align_x(Alignment::Center)
-                    .spacing(space_xxs),
-                )
-                .center(Length::Fill)
-                .into()
-            ])
+                        widget::text::body(fl!("loading-items"))
+                        .into(),
+                    ]),
+                    Mode::Desktop => widget::column::with_capacity(0),
+                }
+                .align_x(Alignment::Center)
+                .spacing(space_xxs),
+            )
+            .center_x(Length::Fill)
+            .center_y(Length::Fixed(size.height - (space_s * 2) as f32 - 32.0))
         )
         .on_press(|_| Message::Click(None));
         if matches!(self.mode, Mode::Desktop) {
@@ -6102,9 +6075,48 @@ impl Tab {
                 .show_drag_rect(self.mode.multiple())
                 .on_release(|_| Message::ClickRelease(None));
         }
-        // if self.watch_drag {
-        //     mouse_area = mouse_area.on_drag(Some(Message::Drag));
-        // }
+        mouse_area.into()
+    }
+
+    pub fn empty_view(&self, has_hidden: bool) -> Element<'_, Message> {
+        let cosmic_theme::Spacing {
+            space_s,
+            space_xxs,
+            ..
+        } = theme::spacing();
+        let size = self.size_opt.get().unwrap_or_else(|| Size::new(100.0, 100.0));
+        let mut mouse_area = mouse_area::MouseArea::new(
+            widget::container(
+                match self.mode {
+                    Mode::App | Mode::Dialog(_) => widget::column::with_children([
+                        widget::icon::from_name("folder-symbolic")
+                            .size(64)
+                            .icon()
+                            .into(),
+                        widget::text::body(if has_hidden {
+                            fl!("empty-folder-hidden")
+                        } else if matches!(self.location, Location::Search(..)) {
+                            fl!("no-results")
+                        } else {
+                            fl!("empty-folder")
+                        })
+                        .into(),
+                    ]),
+                    Mode::Desktop => widget::column::with_capacity(0),
+                }
+                .align_x(Alignment::Center)
+                .spacing(space_xxs),
+            )
+            .center_x(Length::Fill)
+            .center_y(Length::Fixed(size.height - (space_s * 2) as f32 - 32.0))
+        )
+        .on_press(|_| Message::Click(None));
+        if matches!(self.mode, Mode::Desktop) {
+            mouse_area = mouse_area
+                .on_drag_end(|_| Message::DragEnd)
+                .show_drag_rect(self.mode.multiple())
+                .on_release(|_| Message::ClickRelease(None));
+        }
         mouse_area.into()
     }
 
@@ -6139,7 +6151,7 @@ impl Tab {
         let name_width = 260.0;
         let modified_width = 160.0;
         let size_width = 80.0;
-        let starred_width = if show_starred { 32.0 + (space_xxs as f32 * 2.0) } else { 0.0 };
+        let starred_width = if show_starred { 24.0 + (space_xxs as f32 * 2.0) } else { 0.0 };
         let condensed = size.width < (name_width + modified_width + size_width + starred_width + space_xxs as f32);
         let is_search = matches!(self.location, Location::Search(..));
         let icon_size = if condensed || is_search {
@@ -6167,7 +6179,6 @@ impl Tab {
                 .map(|o| o.y.min(max_scroll_y).max(0.0))
                 .unwrap_or(0.0);
             let point = Point::new(0.0, scroll_y);
-            let size = self.size_opt.get().unwrap_or_else(|| Size::new(0.0, 0.0));
             Rectangle::new(point, size)
         };
 
@@ -6175,6 +6186,13 @@ impl Tab {
         if let Some(items) = self.column_sort() {
             let mut count = 0;
             let mut hidden = 0;
+
+            // Show empty view instead if no items at all
+            let items_len = items.len();
+            if items_len == 0 {
+                return (None, self.empty_view(false), None);
+            }
+
             for (i, item) in items {
                 if item.hidden && !show_hidden {
                     item.pos_opt.set(None);
@@ -6197,7 +6215,7 @@ impl Tab {
                 item.rect_opt.set(Some(item_rect));
 
                 // Build stack of dragged items
-                if item.selected {
+                if item.selected && !self.location.is_recents() {
                     drag_item_icons.push(item.icon_handle_grid.clone());
                 };
 
@@ -6277,21 +6295,19 @@ impl Tab {
                     // Choose the child columns to show in the row
                     let mut children = Vec::new();
 
-                    if condensed || is_search {
-                        children.push(
-                            widget::icon::icon(item.icon_handle_list_condensed.clone())
-                                .content_fit(ContentFit::Contain)
-                                .size(icon_size)
-                                .into()
-                        );
-                    } else {
-                        children.push(
-                            widget::icon::icon(item.icon_handle_list.clone())
-                                .content_fit(ContentFit::Contain)
-                                .size(icon_size)
-                                .into()
-                        );
-                    }
+                    children.push(
+                        Element::from(
+                            widget::icon::icon(
+                                if condensed || is_search {
+                                    item.icon_handle_list_condensed.clone()
+                                } else {
+                                    item.icon_handle_list.clone()
+                                }
+                            )
+                            .content_fit(ContentFit::Contain)
+                            .size(icon_size)
+                        )
+                    );
 
                     if condensed {
                         children.push(
@@ -6339,22 +6355,20 @@ impl Tab {
                     if show_starred {
                         children.push(
                             widget::container(if item.starred {
-                                    widget::tooltip(
-                                        widget::button::icon(widget::icon::from_name("starred-symbolic").size(16))
-                                        .on_press(Message::RemoveFromStarred(item_path_vec)),
-                                        widget::text::body(fl!("remove-from-starred")),
-                                        widget::tooltip::Position::Top,
-                                    )
-                                } else {
-                                    widget::tooltip(
-                                        widget::button::icon(widget::icon::from_name("non-starred-symbolic").size(16))
-                                        .on_press(Message::AddToStarred(item_path_vec)),
-                                        widget::text::body(fl!("add-to-starred")),
-                                        widget::tooltip::Position::Top,
-                                    )
-                                })
-                                .width(Length::Fixed(starred_width))
-                                .into()
+                                widget::button::icon(
+                                    widget::icon::from_name("starred-symbolic").size(16)
+                                )
+                                .tooltip(fl!("remove-from-starred"))
+                                .on_press(Message::RemoveFromStarred(item_path_vec))
+                            } else {
+                                widget::button::icon(
+                                    widget::icon::from_name("non-starred-symbolic").size(16)
+                                )
+                                .tooltip(fl!("add-to-starred"))
+                                .on_press(Message::AddToStarred(item_path_vec))
+                            })
+                            .width(Length::Fixed(starred_width))
+                            .into()
                         )
                     };
                     let row = widget::row::with_children(children)
@@ -6373,8 +6387,6 @@ impl Tab {
                                     item.highlighted,
                                     item.cut,
                                     item.hidden,
-                                    true,
-                                    false,
                                 )),
                         )
                         .on_press(move |_| Message::Click(Some(i)))
@@ -6420,22 +6432,25 @@ impl Tab {
             // Cache content height for scroll clamping on next frame
             self.content_height_opt.set(Some(y));
         }
+        else {
+            return (None, self.loading_view(), None);
+        }
 
-        // //TODO: HACK If we don't reach the bottom of the view, go ahead and add a spacer to do that
-        // {
-        //     let top_deduct = (if condensed || is_search { 6 } else { 9 }) * space_xxs;
+        //TODO: HACK If we don't reach the bottom of the view, go ahead and add a spacer to do that
+        {
+            let top_deduct = (if condensed || is_search { 6 } else { 9 }) * space_xxs;
 
-        //     self.item_view_size_opt
-        //         .set(self.size_opt.get().map(|s| Size {
-        //             width: s.width,
-        //             height: s.height - f32::from(top_deduct),
-        //         }));
+            self.item_view_size_opt
+                .set(self.size_opt.get().map(|s| Size {
+                    width: s.width,
+                    height: s.height - f32::from(top_deduct),
+                }));
 
-        //     let spacer_height = size.height - y - f32::from(top_deduct);
-        //     if spacer_height > 0. {
-        //         column = column.push(widget::container(space::vertical().height(spacer_height)));
-        //     }
-        // }
+            let spacer_height = size.height - y - f32::from(top_deduct);
+            if spacer_height > 0. {
+                column = column.push(widget::container(space::vertical().height(spacer_height)));
+            }
+        }
 
         let mouse_area = mouse_area::MouseArea::new(column.padding([0, space_s]))
             .with_id(Id::new("list-view"))
@@ -6544,11 +6559,18 @@ impl Tab {
             .row_spacing(grid_spacing)
             .padding(space_xxs.into());
 
-        let mut count = 0;
-        let mut hidden = 0;
         let mut drag_item_icons = Vec::new();
         let mut column = widget::column::with_capacity(2);
         if let Some(items) = self.column_sort() {
+            let mut count = 0;
+            let mut hidden = 0;
+
+            // Show empty view instead if no items at all
+            let items_len = items.len();
+            if items_len == 0 {
+                return (None, self.empty_view(false), None);
+            }
+
             for &(i, item) in &items {
 
                 // Don't even count hidden items if not shown
@@ -6560,7 +6582,7 @@ impl Tab {
                 }
 
                 // Add the item to the drag stack, even if not currently visible
-                if item.selected {
+                if item.selected && !self.location.is_recents() {
                     drag_item_icons.push(item.icon_handle_grid.clone());
                 }
 
@@ -6619,38 +6641,32 @@ impl Tab {
                             .size(icon_sizes.grid())
                     );
                     let mut emblems = vec![];
-
                     if show_starred {
                         if item.starred {
                             emblems.push(
-                                widget::layer_container(
-                                    widget::tooltip(
-                                        widget::button::icon(widget::icon::from_name("starred-symbolic").size(16))
-                                            .on_press(Message::RemoveFromStarred(item_path_vec))
-                                            .padding(2),
-                                        widget::text::body(fl!("remove-from-starred")),
-                                        widget::tooltip::Position::Bottom,
-                                    )
+                                widget::button::icon(
+                                    widget::icon::from_name("starred-symbolic")
+                                    .size(16)
                                 )
+                                .on_press(Message::RemoveFromStarred(item_path_vec))
+                                .tooltip(fl!("remove-from-starred"))
+                                .padding(space_xxxs)
                                 .into()
                             )
                         }
                         else if item.highlighted {
                             emblems.push(
-                                widget::layer_container(
-                                    widget::tooltip(
-                                        widget::button::icon(widget::icon::from_name("non-starred-symbolic").size(16))
-                                            .on_press(Message::AddToStarred(item_path_vec))
-                                            .padding(2),
-                                        widget::text::body(fl!("add-to-starred")),
-                                        widget::tooltip::Position::Bottom,
-                                    )
+                                widget::button::icon(
+                                    widget::icon::from_name("non-starred-symbolic")
+                                    .size(16)
                                 )
+                                .on_press(Message::AddToStarred(item_path_vec))
+                                .tooltip(fl!("add-to-starred"))
+                                .padding(space_xxxs)
                                 .into()
                             )
                         }
                     }
-
                     let item_emblems = widget::container(
                         widget::column::with_children(emblems)
                     )
@@ -6690,8 +6706,6 @@ impl Tab {
                                         item.highlighted,
                                         item.cut,
                                         item.hidden,
-                                        true,
-                                        false,
                                     )),
                             )
                             .height(Length::Fixed(item_height as f32))
@@ -6734,12 +6748,15 @@ impl Tab {
 
             }
 
+            // Show empty view if no visible items at all
+            if count == 0 {
+                return (None, self.empty_view(hidden > 0), None);
+            }
+
             column = column.push(grid);
         }
-
-        // Show empty view if no visible items at all
-        if count == 0 {
-            return (None, self.empty_view(hidden > 0), None);
+        else {
+            return (None, self.loading_view(), None);
         }
 
         let mouse_area = mouse_area::MouseArea::new(column.width(Length::Fill))
@@ -6775,10 +6792,19 @@ impl Tab {
             icon_sizes,
             ..
         } = self.config;
+
+        let mut show_starred = self.config.show_starred;
+        let is_trash = self.location.is_trash();
+        if is_trash {
+            show_starred = false;
+        } else if self.location.is_starred() {
+            show_starred = true;
+        }
+
         let grid_spacing = space_xxxs;
-        let icon_size = icon_sizes.column().max(24); // Prevent icons getting too small
+        let icon_size = icon_sizes.column().max(30); // Prevent icons getting too small
         let item_width = (140 + grid_spacing + icon_size + grid_spacing) as usize;
-        let item_height = (grid_spacing + icon_size + grid_spacing) as usize;
+        let item_height = ((space_xxxs/2).max(1) as u16 + icon_size + (space_xxxs/2).max(1) as u16) as usize;
 
         let (width, height) = match self.size_opt.get() {
             Some(size) => (
@@ -6809,10 +6835,11 @@ impl Tab {
         };
 
         let mut column = widget::column::with_capacity(2);
-        let mut count = 0;
-        let mut hidden = 0;
         let mut drag_item_icons = Vec::new();
         if let Some(items) = self.column_sort() {
+            let mut count = 0;
+            let mut hidden = 0;
+
             // Show empty view instead if no items at all
             let items_len = items.len();
             if items_len == 0 {
@@ -6843,8 +6870,16 @@ impl Tab {
                 }
 
                 // Add the item to the drag stack, even if not currently visible
-                if item.selected {
+                if item.selected && !self.location.is_recents() {
                     drag_item_icons.push(item.icon_handle_grid.clone());
+                }
+
+                // Collect paths of starred items to batch process, even if not visible
+                let mut item_path_vec = Vec::new();
+                if show_starred {
+                    if let Some(path) = item.path_opt() {
+                        item_path_vec.push(path.to_path_buf());
+                    }
                 }
 
                 let col = (count / rows) as usize;
@@ -6872,6 +6907,40 @@ impl Tab {
                     continue;
                 }
 
+                let mut emblems = vec![];
+                if show_starred {
+                    if item.starred {
+                        emblems.push(
+                            widget::button::icon(
+                                widget::icon::from_name("starred-symbolic")
+                                .size(16)
+                            )
+                            .on_press(Message::RemoveFromStarred(item_path_vec))
+                            .tooltip(fl!("remove-from-starred"))
+                            .padding([(space_xxxs/2).max(1) as u16 + 2,space_xxxs])
+                            .into()
+                        )
+                    }
+                    else if item.highlighted {
+                        emblems.push(
+                            widget::button::icon(
+                                widget::icon::from_name("non-starred-symbolic")
+                                .size(16)
+                            )
+                            .on_press(Message::AddToStarred(item_path_vec))
+                            .tooltip(fl!("add-to-starred"))
+                            .padding([(space_xxxs/2).max(1) as u16 + 2,space_xxxs])
+                            .into()
+                        )
+                    }
+                }
+                let item_emblems = widget::container(
+                    widget::column::with_children(emblems)
+                )
+                .align_right(Length::Fill)
+                .align_top(Length::Fill)
+                .width(Length::Fixed(width as f32));
+
                 let contents = widget::row::with_children([
                     widget::container(
                         widget::icon::icon(item.icon_handle_column.clone())
@@ -6884,100 +6953,24 @@ impl Tab {
                     .width(Length::Fixed(icon_size as f32))
                     .padding(padding::right(space_xxxs))
                     .into(),
-                    Element::from(widget::container(
-                        widget::tooltip(
+                    Element::from(
+                        widget::container(widget::tooltip(
                             Item::column_display_name(&item.display_name),
                             widget::text::body(&item.name),
                             widget::tooltip::Position::Bottom,
-                        )
-                    )
-                    .align_y(Alignment::Center)
-                    .width(Length::Fill)
-                    .style(|t| {
-                        // TODO: Merge with button_style()
-                        let mut a = widget::container::Style::default();
-                        let c = t.cosmic();
-                        let mut background = Color::TRANSPARENT;
-                        let mut icon_color = Color::from(c.on_bg_component_color());
-                        let mut text_color = Color::from(c.on_bg_component_color());
-
-                        // Button is highlighted (hover, etc)
-                        if item.highlighted {
-                            background = Color::from(c.accent_color());
-                            icon_color = Color::from(c.on_accent_color());
-                            text_color = Color::from(c.on_accent_color());
-                            background = background.scale_alpha(0.75);
-                        }
-
-                        // Button is selected
-                        else if item.selected {
-                            background = Color::from(c.accent_color());
-                            icon_color = Color::from(c.on_accent_color());
-                            text_color = Color::from(c.on_accent_color());
-                            background = background.scale_alpha(0.66);
-                        }
-
-                        // Button is an item on the desktop
-                        else if matches!(self.mode, Mode::Desktop) {
-                            background = Color::from(c.bg_color());
-                            icon_color = Color::from(c.on_bg_color());
-                            text_color = Color::from(c.on_bg_color());
-                        }
-
-                        // Visually indicate cut items
-                        if item.cut {
-                            let disabled_color = Color::from(
-                                c.background(t.transparent).component.on_disabled,
-                            );
-                            if !item.highlighted && !item.selected {
-                                background = Color::from(
-                                    c.background(t.transparent).component.disabled,
-                                ).scale_alpha(0.1);
-                                icon_color = disabled_color;
-                                text_color = disabled_color;
-                            }
-                            icon_color = icon_color.scale_alpha(0.8);
-                            text_color = text_color.scale_alpha(0.8);
-                        }
-
-                        // Visually indicate hidden items
-                        if item.hidden {
-                            icon_color = icon_color.scale_alpha(0.8);
-                            text_color = text_color.scale_alpha(0.8);
-                        }
-
-                        // Ensure legibility of text on the backgrounds
-                        let bg_check = if background == Color::TRANSPARENT {
-                                Color::from(c.bg_color())
-                            } else {
-                                background
-                        };
-                        if !text_color.is_readable_on(bg_check) {
-                            if Color::from(c.on_bg_color()).is_readable_on(bg_check) {
-                                icon_color = Color::from(c.on_bg_color());
-                                text_color = Color::from(c.on_bg_color());
-                            }
-                            else if Color::from(c.on_bg_component_color()).is_readable_on(bg_check) {
-                                icon_color = Color::from(c.on_bg_component_color());
-                                text_color = Color::from(c.on_bg_component_color());
-                            }
-                            else if Color::WHITE.is_readable_on(bg_check) {
-                                icon_color = Color::WHITE;
-                                text_color = Color::WHITE;
-                            } else {
-                                icon_color = Color::BLACK;
-                                text_color = Color::BLACK;
-                            }
-                        }
-                        a.icon_color = Some(icon_color);
-                        a.text_color = Some(text_color);
-                        a
-                    })),
+                        ))
+                        .align_y(Alignment::Center)
+                        .width(Length::Fill)
+                    ),
                 ])
                 .height(Length::Fill)
                 .width(width as f32)
                 .align_y(Alignment::Center);
 
+                let contents = stack![
+                    contents,
+                    item_emblems,
+                ];
                 let button = |contents| {
                     let mouse_area = crate::mouse_area::MouseArea::new(
                         widget::button::custom(contents)
@@ -6987,9 +6980,7 @@ impl Tab {
                                 item.selected,
                                 item.highlighted,
                                 item.cut,
-                                true,
                                 item.hidden,
-                                false,
                             )),
                     )
                     .on_press(move |_| Message::Click(Some(i)))
@@ -6999,16 +6990,6 @@ impl Tab {
                     .on_enter(move || Message::HighlightActivate(i))
                     .on_exit(move || Message::HighlightDeactivate(i));
 
-                    // if self.context_menu.is_some() {
-                    //     mouse_area
-                    // } else {
-                    //     mouse_area
-                    //         .on_right_press_no_capture()
-                    //         .wayland_on_right_press_window_position()
-                    //         .on_right_press(move |point_opt| {
-                    //             Message::RightClick(point_opt, Some(i))
-                    //         })
-                    // }
                     mouse_area
                 };
 
@@ -7023,7 +7004,7 @@ impl Tab {
                         cell.into()
                     };
                 item_elements.push(cell);
-                
+
                 count += 1;
 
             }
@@ -7035,9 +7016,13 @@ impl Tab {
 
             column = column.push(
                 widget::column::with_children(item_elements)
+                    .spacing(1.0)
                     .wrap()
                     .horizontal_spacing(space_xxxs)
             );
+        }
+        else {
+            return (None, self.loading_view(), None);
         }
 
         let mouse_area = mouse_area::MouseArea::new(
@@ -7050,9 +7035,6 @@ impl Tab {
             .on_drag_end(|_| Message::DragEnd)
             .show_drag_rect(self.mode.multiple())
             .on_release(|_| Message::ClickRelease(None));
-        // if self.watch_drag {
-        //     mouse_area = mouse_area.on_drag(Message::Drag);
-        // }
 
         return (
             self.drag_stack(drag_item_icons),
