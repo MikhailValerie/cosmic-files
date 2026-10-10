@@ -250,7 +250,6 @@ impl Config {
             icon_sizes: self.dialog.icon_sizes,
             military_time: self.tab.military_time,
             show_hidden: self.dialog.show_hidden,
-            in_progress: 0,
             single_click: false,
             view: self.dialog.view,
         }
@@ -320,8 +319,6 @@ pub struct DialogConfig {
     pub show_details: bool,
     /// Show hidden files and folders
     pub show_hidden: bool,
-    /// Count of In-Progress operations for indicator
-    pub in_progress: u16,
     /// Selected view, grid or list
     pub view: View,
 }
@@ -333,7 +330,6 @@ impl Default for DialogConfig {
             icon_sizes: IconSizes::default(),
             show_details: true,
             show_hidden: false,
-            in_progress: 0,
             view: View::List,
         }
     }
@@ -374,8 +370,6 @@ pub struct TabConfig {
     pub military_time: bool,
     /// Show hidden files and folders
     pub show_hidden: bool,
-    /// Count of In-Progress Operations for indicator
-    pub in_progress: u16,
     /// Single click to open
     pub single_click: bool,
     /// Selected view, grid or list
@@ -389,7 +383,6 @@ impl Default for TabConfig {
             icon_sizes: IconSizes::default(),
             military_time: false,
             show_hidden: false,
-            in_progress: 0,
             single_click: false,
             view: View::List,
         }

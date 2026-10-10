@@ -1436,6 +1436,7 @@ impl App {
                 self.complete_operations.insert(id, op);
                 operations_in_progress = operations_in_progress.saturating_sub(1);
             }
+            operations_in_progress = operations_in_progress.saturating_sub(1);
         }
 
         // Close progress notification if all relevant operations are finished
@@ -4300,7 +4301,10 @@ impl Application for App {
                 return self.update_state();
             }
             Message::PendingComplete(id, op_sel) => {
-                return self.handle_completed_operations(vec![(id, op_sel)]);
+                let mut tasks = Vec::new();
+                tasks.push(self.handle_completed_operations(vec![(id, op_sel)]));
+                tasks.push(self.update_state());
+                return Task::batch(tasks);
             }
             Message::PendingDismiss => {
                 self.progress_operations_dismiss = true;
@@ -4309,12 +4313,16 @@ impl Application for App {
                 self.progress_operations_dismiss = false;
             }
             Message::PendingError(id, err) => {
-                return self.handle_operation_errors(vec![(id, err)]);
+                let mut tasks = Vec::new();
+                tasks.push(self.handle_operation_errors(vec![(id, err)]));
+                tasks.push(self.update_state());
+                return Task::batch(tasks);
             }
             Message::PendingResults(completed, errors) => {
                 return Task::batch(vec![
                     self.handle_completed_operations(completed),
                     self.handle_operation_errors(errors),
+                    self.update_state(),
                 ]);
             }
             Message::PendingPause(id, pause) => {
@@ -4662,16 +4670,6 @@ impl Application for App {
             Message::ToggleShowHidden => {
                 let mut config = self.config.tab;
                 config.show_hidden = !config.show_hidden;
-                return self.update(Message::TabConfig(config));
-            }
-            Message::IncrementInProgress => {
-                let mut config = self.config.tab;
-                config.in_progress = config.in_progress.saturating_add(1);
-                return self.update(Message::TabConfig(config));
-            }
-            Message::DecrementInProgress => {
-                let mut config = self.config.tab;
-                config.in_progress = config.in_progress.saturating_sub(1);
                 return self.update(Message::TabConfig(config));
             }
             Message::TabMessage(entity_opt, tab_message) => {
