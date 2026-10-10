@@ -4664,6 +4664,16 @@ impl Application for App {
                 config.show_hidden = !config.show_hidden;
                 return self.update(Message::TabConfig(config));
             }
+            Message::IncrementInProgress => {
+                let mut config = self.config.tab;
+                config.in_progress = config.in_progress.saturating_add(1);
+                return self.update(Message::TabConfig(config));
+            }
+            Message::DecrementInProgress => {
+                let mut config = self.config.tab;
+                config.in_progress = config.in_progress.saturating_sub(1);
+                return self.update(Message::TabConfig(config));
+            }
             Message::TabMessage(entity_opt, tab_message) => {
                 let entity = entity_opt.unwrap_or_else(|| self.tab_model.active());
                 // The context menu opens on right-button release, so refresh paste availability now
