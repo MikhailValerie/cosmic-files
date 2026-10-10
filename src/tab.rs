@@ -157,7 +157,7 @@ fn button_appearance(
     cut: bool,
     focused: bool,
     accent: bool,
-    condensed_radius: bool,
+    hidden: bool,
     desktop: bool,
 ) -> widget::button::Style {
     let cosmic = theme.cosmic();
@@ -260,7 +260,7 @@ fn button_style(
     highlighted: bool,
     cut: bool,
     accent: bool,
-    condensed_radius: bool,
+    hidden: bool,
     desktop: bool,
 ) -> theme::Button {
     //TODO: move to libcosmic?
@@ -273,7 +273,7 @@ fn button_style(
                 cut,
                 focused,
                 accent,
-                condensed_radius,
+                hidden,
                 desktop,
             )
         }),
@@ -285,7 +285,7 @@ fn button_style(
                 cut,
                 false,
                 accent,
-                condensed_radius,
+                hidden,
                 desktop,
             )
         }),
@@ -297,7 +297,7 @@ fn button_style(
                 cut,
                 focused,
                 accent,
-                condensed_radius,
+                hidden,
                 desktop,
             )
         }),
@@ -309,7 +309,7 @@ fn button_style(
                 cut,
                 focused,
                 accent,
-                condensed_radius,
+                hidden,
                 desktop,
             )
         }),
@@ -6222,6 +6222,8 @@ impl Tab {
                                 .center_x(Length::Fill)
                                 .max_height(icon_sizes.grid()),
                         )
+                        .id(item.button_id.clone())
+                        .width(Length::Fill)
                         .padding(space_xxxs)
                         .class(button_style(
                             item.selected,
@@ -6264,24 +6266,21 @@ impl Tab {
                         );
                     }
 
+                    let column = widget::column::with_children([button])
+                        .align_x(Alignment::Center)
+                        .height(Length::Fixed(item_height as f32))
+                        .width(Length::Fixed(item_width as f32));
                     let column: Element<Message> =
                         if item.metadata.is_dir() && item.location_opt.is_some() {
                             self.dnd_dest(&item.location_opt.clone().unwrap(), column)
                         } else {
                             column.into()
                         };
+                    grid_elements[row].push(column);
 
                     if item.selected {
                         drag_item_icons.push(item.icon_handle_grid.clone());
                     }
-                    let mouse_area = crate::mouse_area::MouseArea::new(column)
-                        .on_press(move |_| Message::Click(Some(i)))
-                        .on_double_click(move |_| Message::DoubleClick(Some(i)))
-                        .on_release(move |_| Message::ClickRelease(Some(i)))
-                        .on_middle_press(move |_| Message::MiddleClick(i))
-                        .on_enter(move || Message::HighlightActivate(i))
-                        .on_exit(move || Message::HighlightDeactivate(i));
-                    grid_elements[row].push(Element::from(mouse_area));
                 } else {
                     // Add a spacer if the row is empty, so scroll works
                     if grid_elements[row].is_empty() {
@@ -6634,7 +6633,7 @@ impl Tab {
                                     item.highlighted,
                                     item.cut,
                                     true,
-                                    true,
+                                    item.hidden,
                                     false,
                                 )),
                         )
