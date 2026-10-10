@@ -10,6 +10,7 @@ networks = Networks
 notification-in-progress = File operations are in progress
 trash = Trash
 recents = Recents
+starred = Starred
 undo = Undo
 today = Today
 
@@ -28,6 +29,7 @@ name = Name
 modified = Modified
 trashed-on = Trashed
 size = Size
+starred = Starred
 
 # Progress footer
 details = Details
@@ -285,6 +287,22 @@ removed-from-recents = Removed {$items} {$items ->
         [one] item
         *[other] items
     } from {recents}
+adding-to-starred = Adding {$items} {$items ->
+        [one] item
+        *[other] items
+    } to {starred}
+added-to-starred = Added {$items} {$items ->
+        [one] item
+        *[other] items
+    } to {starred}
+removing-from-starred = Removing {$items} {$items ->
+        [one] item
+        *[other] items
+    } from {starred}
+removed-from-starred = Removed {$items} {$items ->
+        [one] item
+        *[other] items
+    } from {starred}
 renaming = Renaming "{$from}" to "{$to}"
 renamed = Renamed "{$from}" to "{$to}"
 restoring = Restoring {$items} {$items ->
@@ -319,6 +337,7 @@ error = Error
 settings = Settings
 single-click = Single click to open
 show-recents = Recents folder in the sidebar
+show-starred = Show starred
 
 ### Appearance
 appearance = Appearance
@@ -335,7 +354,9 @@ type-to-search-select = Selects the first matching file or folder
 
 # Context menu
 add-to-sidebar = Add to sidebar
-clear-recents-history = Clear Recents history
+add-to-starred = Add to starred
+remove-from-starred = Remove from starred
+clear-recents-history = Clear recents history
 compress = Compress...
 copy-to = Copy to...
 delete-permanently = Delete permanently
@@ -354,6 +375,7 @@ sort-by-modified = Sort by modified
 sort-by-size = Sort by size
 sort-by-trashed = Sort by delete time
 remove-from-recents = Remove from recents
+no-recents = No recent history
 
 # Footer bar
 items-count = {$count} {$count ->
@@ -427,3 +449,5 @@ sort-newest-first = Newest first
 sort-oldest-first = Oldest first
 sort-smallest-to-largest = Smallest to largest
 sort-largest-to-smallest = Largest to smallest
+sort-starred-first = Starred first
+sort-starred-last = Starred last
