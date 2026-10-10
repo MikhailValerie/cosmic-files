@@ -1436,7 +1436,6 @@ impl App {
                 self.complete_operations.insert(id, op);
                 operations_in_progress = operations_in_progress.saturating_sub(1);
             }
-            operations_in_progress = operations_in_progress.saturating_sub(1);
         }
 
         // Close progress notification if all relevant operations are finished
@@ -4301,10 +4300,7 @@ impl Application for App {
                 return self.update_state();
             }
             Message::PendingComplete(id, op_sel) => {
-                let mut tasks = Vec::new();
-                tasks.push(self.handle_completed_operations(vec![(id, op_sel)]));
-                tasks.push(self.update_state());
-                return Task::batch(tasks);
+                return self.handle_completed_operations(vec![(id, op_sel)]);
             }
             Message::PendingDismiss => {
                 self.progress_operations_dismiss = true;
@@ -4313,16 +4309,12 @@ impl Application for App {
                 self.progress_operations_dismiss = false;
             }
             Message::PendingError(id, err) => {
-                let mut tasks = Vec::new();
-                tasks.push(self.handle_operation_errors(vec![(id, err)]));
-                tasks.push(self.update_state());
-                return Task::batch(tasks);
+                return self.handle_operation_errors(vec![(id, err)]);
             }
             Message::PendingResults(completed, errors) => {
                 return Task::batch(vec![
                     self.handle_completed_operations(completed),
                     self.handle_operation_errors(errors),
-                    self.update_state(),
                 ]);
             }
             Message::PendingPause(id, pause) => {
@@ -6710,7 +6702,7 @@ impl Application for App {
             }
             let finished = count - running;
             total_progress /= count as f32;
-            if running >= 1 && (running > 1 || finished > 0) {
+            if running >= 1 {
                 if finished > 0 {
                     title = fl!(
                         "operations-running-finished",
