@@ -877,13 +877,6 @@ impl App {
         }
     }
 
-    fn has_bookmarks(&mut self) -> bool {
-        match user_places_xbel::parse_file() {
-            Ok(bookmarks) => !bookmarks.bookmarks.is_empty(),
-            Err(_) => false,
-        }
-    }
-
     fn update_nav_model(&mut self) {
         let mut nav_model = segmented_button::ModelBuilder::default();
 

@@ -8,7 +8,7 @@ use cosmic::iced::core::mouse::ScrollDelta;
 use cosmic::iced::core::widget::tree;
 use cosmic::iced::futures::{self, SinkExt};
 use cosmic::iced::keyboard::Modifiers;
-use cosmic::iced::widget::scrollable::{self, AbsoluteOffset, Viewport};
+use cosmic::iced::widget::scrollable::{self, AbsoluteOffset, Direction, Scrollbar, Viewport};
 use cosmic::iced::widget::{rule, stack};
 use cosmic::iced::{
     Alignment, Border, Color, ContentFit, Length, Point, Rectangle, Size, Subscription, Vector,
@@ -6118,10 +6118,7 @@ impl Tab {
     ) {
         let cosmic_theme::Spacing {
             space_s, space_xxs, ..
-        } =
-        Option<Element<'static, Message>>,
-        Element<'_, Message>,
-        Option<ScrollDirection>, theme::spacing();
+        } = theme::spacing();
 
         let TabConfig {
             show_hidden,
@@ -6769,7 +6766,6 @@ impl Tab {
         Option<ScrollDirection>,
     ) {
         let cosmic_theme::Spacing {
-            space_xxs,
             space_xxxs,
             ..
         } = theme::spacing();
@@ -7003,16 +6999,17 @@ impl Tab {
                     .on_enter(move || Message::HighlightActivate(i))
                     .on_exit(move || Message::HighlightDeactivate(i));
 
-                    if self.context_menu.is_some() {
-                        mouse_area
-                    } else {
-                        mouse_area
-                            .on_right_press_no_capture()
-                            .wayland_on_right_press_window_position()
-                            .on_right_press(move |point_opt| {
-                                Message::RightClick(point_opt, Some(i))
-                            })
-                    }
+                    // if self.context_menu.is_some() {
+                    //     mouse_area
+                    // } else {
+                    //     mouse_area
+                    //         .on_right_press_no_capture()
+                    //         .wayland_on_right_press_window_position()
+                    //         .on_right_press(move |point_opt| {
+                    //             Message::RightClick(point_opt, Some(i))
+                    //         })
+                    // }
+                    mouse_area
                 };
 
                 let cell = widget::column::with_children([button(contents).into()])
@@ -7043,7 +7040,7 @@ impl Tab {
             );
         }
 
-        let mut mouse_area = mouse_area::MouseArea::new(
+        let mouse_area = mouse_area::MouseArea::new(
             column
                 .height(Length::Fill)
                 .width(Length::Fill)
@@ -7053,9 +7050,9 @@ impl Tab {
             .on_drag_end(|_| Message::DragEnd)
             .show_drag_rect(self.mode.multiple())
             .on_release(|_| Message::ClickRelease(None));
-        if self.watch_drag {
-            mouse_area = mouse_area.on_drag(Message::Drag);
-        }
+        // if self.watch_drag {
+        //     mouse_area = mouse_area.on_drag(Message::Drag);
+        // }
 
         return (
             self.drag_stack(drag_item_icons),
@@ -7088,7 +7085,7 @@ impl Tab {
         } else {
             Some(self.location_view())
         };
-        let (drag_list, mut item_view, _scroll_dir) = match self.config.view {
+        let (drag_list, mut item_view, scroll_dir) = match self.config.view {
             View::Grid => self.grid_view(),
             View::List => self.list_view(),
             View::Column => self.column_view(),
@@ -7176,33 +7173,32 @@ impl Tab {
         if let Some(location_view) = location_view_opt {
             tab_column = tab_column.push(location_view);
         }
-        tab_column = tab_column.push(context_menu);
-        // if Some(scroll_dir.clone()).is_some() {
-        //     tab_column = tab_column.push(
-        //         // FIXME: new responsive widget will remove the state from the scrollable
-        //         // id_container with custom id forces the state to be extracted in a diff
-        //         // pre-processing step
-        //         widget::id_container(
-        //             widget::scrollable(popover)
-        //                 .id(self.scrollable_id.clone())
-        //                 .direction(match scroll_dir {
-        //                     Some(ScrollDirection::Horizontal) => Direction::Horizontal(Scrollbar::new()),
-        //                     Some(ScrollDirection::Vertical) => Direction::Vertical(Scrollbar::new()),
-        //                     Some(ScrollDirection::Both) => Direction::Both {
-        //                         vertical: Scrollbar::new(),
-        //                         horizontal: Scrollbar::new(),
-        //                     },
-        //                     None => Direction::Vertical(Scrollbar::new()) // default
-        //                 })
-        //                 .on_scroll(Message::Scroll)
-        //                 .width(Length::Fill)
-        //                 .height(Length::Fill),
-        //             widget::Id::new(format!("{}-scrollable", self.scrollable_id)),
-        //         ),
-        //     );
-        // } else {
-        //     tab_column = tab_column.push(popover);
-        // }
+        if Some(scroll_dir.clone()).is_some() {
+            tab_column = tab_column.push(
+                // FIXME: new responsive widget will remove the state from the scrollable
+                // id_container with custom id forces the state to be extracted in a diff
+                // pre-processing step
+                widget::id_container(
+                    widget::scrollable(context_menu)
+                        .id(self.scrollable_id.clone())
+                        .direction(match scroll_dir {
+                            Some(ScrollDirection::Horizontal) => Direction::Horizontal(Scrollbar::new()),
+                            Some(ScrollDirection::Vertical) => Direction::Vertical(Scrollbar::new()),
+                            Some(ScrollDirection::Both) => Direction::Both {
+                                vertical: Scrollbar::new(),
+                                horizontal: Scrollbar::new(),
+                            },
+                            None => Direction::Vertical(Scrollbar::new()) // default
+                        })
+                        .on_scroll(Message::Scroll)
+                        .width(Length::Fill)
+                        .height(Length::Fill),
+                    widget::Id::new(format!("{}-scrollable", self.scrollable_id)),
+                ),
+            );
+        } else {
+            tab_column = tab_column.push(context_menu);
+        }
         match &self.location {
             Location::Trash | Location::Search(SearchLocation::Trash, ..) => {
                 if let Some(items) = self.items_opt()

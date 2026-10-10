@@ -442,7 +442,7 @@ pub enum Message {
     RestoreFromTrash(Option<Entity>),
     SaveSortNames,
     SetOperationsInProgress(usize),
-    ScrollTab(i16),
+    ScrollTab(i16, Option<ScrollDirection>),
     SearchActivate,
     SearchClear,
     SearchInput(String),
