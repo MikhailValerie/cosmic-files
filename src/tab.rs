@@ -162,7 +162,7 @@ fn button_appearance(
 ) -> widget::button::Style {
     let cosmic = theme.cosmic();
     let mut appearance = widget::button::Style::new();
-    let mut background = Color::from(cosmic.bg_color());
+    let mut background = Color::TRANSPARENT;
     let mut icon_color = Color::from(cosmic.on_bg_component_color());
     let mut text_color = Color::from(cosmic.on_bg_component_color());
 
@@ -6096,7 +6096,7 @@ impl Tab {
         };
 
         let (cols, column_spacing) = {
-            let width_m1 = width.saturating_sub(item_width + 2 * space_xxs as usize);
+            let width_m1 = width.saturating_sub(item_width + space_xxs as usize);
             let cols_m1 = width_m1 / (item_width + grid_spacing as usize);
             let cols = cols_m1 + 1;
             let spacing = width_m1
