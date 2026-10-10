@@ -2114,6 +2114,11 @@ impl ItemMetadata {
             _ => None,
         }
     }
+
+    pub fn is_bookmarked(&self) -> bool {
+        // TODO: Cache bookmarked to query for list
+        return false;
+    }
 }
 
 #[derive(Debug)]
@@ -5721,30 +5726,6 @@ impl Tab {
                 HeadingOptions::Starred,
                 "starred-symbolic",
             ),);
-            // heading_cols.push(heading_item(
-            //     fl!("starred"),
-            //     Length::Fixed(starred_width.into()),
-            //     HeadingOptions::Starred,
-            //     "non-starred-symbolic",
-            // ),);
-            // heading_cols.push(heading_item(
-            //     fl!("starred"),
-            //     Length::Fixed(starred_width.into()),
-            //     HeadingOptions::Starred,
-            //     "",
-            // ),);
-            // heading_cols.push(heading_item(
-            //     fl!("star"),
-            //     Length::Fixed(starred_width.into()),
-            //     HeadingOptions::Starred,
-            //     "",
-            // ),);
-            // heading_cols.push(heading_item(
-            //     " ".to_string(),
-            //     Length::Fixed(starred_width.into()),
-            //     HeadingOptions::Starred,
-            //     "",
-            // ),);
         }
 
         let heading_row = widget::row::with_children(heading_cols)
@@ -6471,6 +6452,10 @@ impl Tab {
 
                 // Only build elements if visible (for performance)
                 let button_row = if item_rect.intersects(&visible_rect) {
+                    let mut bookmarked_icon = "non-starred-symbolic";
+                    if item.bookmarked {
+                        bookmarked_icon = "starred-symbolic";
+                    }
                     let modified_text = match &item.metadata {
                         ItemMetadata::Path { metadata, .. } => match metadata.modified() {
                             Ok(time) => self.format_time(time).to_string(),
