@@ -7231,7 +7231,6 @@ impl Tab {
         Option<ScrollDirection>,
     ) {
         let cosmic_theme::Spacing {
-            space_xxs,
             space_xxxs,
             ..
         } = theme::spacing();
@@ -7464,16 +7463,17 @@ impl Tab {
                     .on_enter(move || Message::HighlightActivate(i))
                     .on_exit(move || Message::HighlightDeactivate(i));
 
-                    if self.context_menu.is_some() {
-                        mouse_area
-                    } else {
-                        mouse_area
-                            .on_right_press_no_capture()
-                            .wayland_on_right_press_window_position()
-                            .on_right_press(move |point_opt| {
-                                Message::RightClick(point_opt, Some(i))
-                            })
-                    }
+                    // if self.context_menu.is_some() {
+                    //     mouse_area
+                    // } else {
+                    //     mouse_area
+                    //         .on_right_press_no_capture()
+                    //         .wayland_on_right_press_window_position()
+                    //         .on_right_press(move |point_opt| {
+                    //             Message::RightClick(point_opt, Some(i))
+                    //         })
+                    // }
+                    mouse_area
                 };
 
                 let cell = widget::column::with_children([button(contents).into()])
@@ -7597,9 +7597,9 @@ impl Tab {
             .on_drag_end(|_| Message::DragEnd)
             .show_drag_rect(self.mode.multiple())
             .on_release(|_| Message::ClickRelease(None));
-        if self.watch_drag {
-            mouse_area = mouse_area.on_drag(Message::Drag);
-        }
+        // if self.watch_drag {
+        //     mouse_area = mouse_area.on_drag(Message::Drag);
+        // }
 
         (drag_list, mouse_area.into(), Some(ScrollDirection::Horizontal))
     }
