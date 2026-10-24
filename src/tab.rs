@@ -162,7 +162,7 @@ fn button_appearance(
 ) -> widget::button::Style {
     let cosmic = theme.cosmic();
     let mut appearance = widget::button::Style::new();
-    let mut background = Color::TRANSPARENT;
+    let mut background = Color::from(cosmic.bg_color());
     let mut icon_color = Color::from(cosmic.on_bg_component_color());
     let mut text_color = Color::from(cosmic.on_bg_component_color());
 
@@ -5558,10 +5558,9 @@ impl Tab {
             .height(Length::Fill)
             .style(|theme| {
                 let cosmic = theme.cosmic();
-                let mut bg = cosmic.bg_color();
-                bg.alpha = 0.75;
+                let bg = cosmic.bg_color();
                 widget::container::Style {
-                    background: Some(Color::from(bg).into()),
+                    background: Some(Color::from(bg).scale_alpha(0.85).into()),
                     ..Default::default()
                 }
             })
@@ -6097,7 +6096,7 @@ impl Tab {
         };
 
         let (cols, column_spacing) = {
-            let width_m1 = width.saturating_sub(item_width);
+            let width_m1 = width.saturating_sub(item_width + 2 * space_xxs as usize);
             let cols_m1 = width_m1 / (item_width + grid_spacing as usize);
             let cols = cols_m1 + 1;
             let spacing = width_m1
@@ -6266,7 +6265,19 @@ impl Tab {
                         );
                     }
 
-                    let column = widget::column::with_children([button])
+                        if self.context_menu.is_some() {
+                            mouse_area
+                        } else {
+                            mouse_area
+                                .on_right_press_no_capture()
+                                .wayland_on_right_press_window_position()
+                                .on_right_press(move |point_opt| {
+                                    Message::RightClick(point_opt, Some(i))
+                                })
+                        }
+                    };
+
+                    let column = widget::column::with_children([button(contents).into()])
                         .align_x(Alignment::Center)
                         .height(Length::Fixed(item_height as f32))
                         .width(Length::Fixed(item_width as f32));
