@@ -2114,11 +2114,6 @@ impl ItemMetadata {
             _ => None,
         }
     }
-
-    pub fn is_bookmarked(&self) -> bool {
-        // TODO: Cache bookmarked to query for list
-        return false;
-    }
 }
 
 #[derive(Debug)]
@@ -6452,10 +6447,6 @@ impl Tab {
 
                 // Only build elements if visible (for performance)
                 let button_row = if item_rect.intersects(&visible_rect) {
-                    let mut bookmarked_icon = "non-starred-symbolic";
-                    if item.bookmarked {
-                        bookmarked_icon = "starred-symbolic";
-                    }
                     let modified_text = match &item.metadata {
                         ItemMetadata::Path { metadata, .. } => match metadata.modified() {
                             Ok(time) => self.format_time(time).to_string(),
