@@ -6249,6 +6249,29 @@ impl Tab {
                         )
                         .into(),
                     ];
+                    if show_starred {
+                        buttons.push(
+                            if item.starred {
+                                widget::tooltip(
+                                    widget::button::icon(widget::icon::from_name("starred-symbolic").size(16))
+                                        .on_press(Message::RemoveFromStarred(item_path_vec))
+                                        .padding(2),
+                                    widget::text::body(fl!("remove-from-starred")),
+                                    widget::tooltip::Position::Top,
+                                )
+                                .into()
+                            } else {
+                                widget::tooltip(
+                                    widget::button::icon(widget::icon::from_name("non-starred-symbolic").size(16))
+                                        .on_press(Message::AddToStarred(item_path_vec))
+                                        .padding(2),
+                                    widget::text::body(fl!("add-to-starred")),
+                                    widget::tooltip::Position::Top,
+                                )
+                                .into()
+                            }
+                        )
+                    }
 
                     let mut column = widget::column::with_capacity(buttons.len())
                         .align_x(Alignment::Center)
