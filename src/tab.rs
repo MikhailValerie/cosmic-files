@@ -162,7 +162,7 @@ fn button_appearance(
 ) -> widget::button::Style {
     let cosmic = theme.cosmic();
     let mut appearance = widget::button::Style::new();
-    let mut background = Color::from(cosmic.bg_color());
+    let mut background = Color::TRANSPARENT;
     let mut icon_color = Color::from(cosmic.on_bg_component_color());
     let mut text_color = Color::from(cosmic.on_bg_component_color());
 
