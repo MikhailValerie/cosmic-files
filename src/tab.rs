@@ -6324,6 +6324,39 @@ let mut grid = widget::grid()
             }
 
             column = column.push(grid);
+
+            // //TODO: HACK If we don't reach the bottom of the view, go ahead and add a spacer to do that
+            // {
+            //     let mut max_bottom = 0;
+            //     for (_, item) in items {
+            //         if let Some(rect) = item.rect_opt.get() {
+            //             let bottom = (rect.y + rect.height).ceil() as usize;
+            //             if bottom > max_bottom {
+            //                 max_bottom = bottom;
+            //             }
+            //         }
+            //     }
+
+            //     // Cache content height for scroll clamping on next frame
+            //     self.content_height_opt.set(Some(max_bottom as f32));
+
+            //     // TODO: Don't have 'magic' number (10) here
+            //     let top_deduct = 10 * (space_xxs as usize);
+
+            //     self.item_view_size_opt
+            //         .set(self.size_opt.get().map(|s| Size {
+            //             width: s.width,
+            //             height: s.height - top_deduct as f32,
+            //         }));
+
+            //     let spacer_height = height.saturating_sub(max_bottom + top_deduct);
+            //     if spacer_height > 0 {
+            //         column = column.push(widget::container(
+            //             space::vertical().height(Length::Fixed(spacer_height as f32)),
+            //         ));
+            //     }
+            // }
+
         }
 
         // 
@@ -6642,7 +6675,7 @@ let mut grid = widget::grid()
                 };
 
                 count += 1;
-                y += f32::from(row_height);
+                y += f32::from(row_height + space_xxs);
                 column = column.push(button_row);
             }
 
