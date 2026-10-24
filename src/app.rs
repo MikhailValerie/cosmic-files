@@ -1441,8 +1441,6 @@ impl App {
                         update_config = true;
                         rescan_recents = true;
                     }
-                } else if let Operation::Delete { .. } = op {
-                    commands.push(self.rescan_recents());
                 }
                 self.complete_operations.insert(id, op);
                 operations_in_progress = operations_in_progress.saturating_sub(1);
