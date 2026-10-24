@@ -7243,7 +7243,7 @@ impl Tab {
         } = self.config;
         let grid_spacing = space_xxxs;
         let icon_size = icon_sizes.column().max(24); // Prevent icons getting too small
-        let item_width = (160 + grid_spacing + icon_size + grid_spacing) as usize;
+        let item_width = (140 + grid_spacing + icon_size + grid_spacing) as usize;
         let item_height = (grid_spacing + icon_size + grid_spacing) as usize;
 
         let (width, height) = match self.size_opt.get() {
@@ -7274,10 +7274,6 @@ impl Tab {
             Rectangle::new(point, size)
         };
 
-        let mut grid = widget::grid()
-            .column_spacing(grid_spacing)
-            .row_spacing(grid_spacing)
-            .padding(grid_spacing.into());
         let mut dnd_items: Vec<(usize, (usize, usize), &Item)> = Vec::new();
         let mut drag_w_i = usize::MAX;
         let mut drag_n_i = usize::MAX;
@@ -7300,14 +7296,12 @@ impl Tab {
                 let rows_m1 = height_m1 / (item_height + grid_spacing as usize);
                 rows_m1.max(1)
             };
-            let cols = (items_len / rows).max(1) as usize;
-            let mut grid_elements = Vec::with_capacity(rows);
-
             
             // TODO: Load grid content asynchronously, starting with the current view
 
             let mut count = 0;
             let mut hidden = 0;
+            let mut item_elements = Vec::<Element<Message>>::new();
 
             for &(i, item) in &items {
                 // Ignore hidden items if not showing hidden
@@ -7320,11 +7314,6 @@ impl Tab {
 
                 let col = (count / rows) as usize;
                 let row = (count % rows) as usize;
-
-                // Build the grid rows when cycling through the first column
-                if col == 0 {
-                    grid_elements.push(Vec::with_capacity(cols))
-                }
 
                 // Skip writing contents for items outside the visible viewport
                 item.pos_opt.set(Some((row, col)));
@@ -7343,7 +7332,7 @@ impl Tab {
                         .height(Length::Fixed(item_height as f32))
                         .width(Length::Fixed(item_width as f32))
                         .into();
-                    grid_elements[row].push(empty_cell);
+                    item_elements.push(empty_cell);
                     count += 1;
                     continue;
                 }
@@ -7497,7 +7486,7 @@ impl Tab {
                     } else {
                         cell.into()
                     };
-                grid_elements[row].push(cell);
+                item_elements.push(cell);
                 
                 if item.selected {
                     dnd_items.push((i, (row, col), item));
@@ -7516,15 +7505,11 @@ impl Tab {
                 return (None, self.empty_view(hidden > 0), None);
             }
 
-            // Write out the visible items to the content grid
-            for row_elements in grid_elements {
-                for element in row_elements {
-                    grid = grid.push(element);
-                }
-                grid = grid.insert_row();
-            }
-
-            column = column.push(grid);
+            column = column.push(
+                widget::column::with_children(item_elements)
+                    .wrap()
+                    .horizontal_spacing(space_xxxs)
+            );
         }
 
         let drag_list = (!dnd_items.is_empty()).then(|| {
