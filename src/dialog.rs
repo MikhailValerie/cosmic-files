@@ -39,7 +39,7 @@ use crate::config::{
 use crate::key_bind::key_binds;
 use crate::localize::LANGUAGE_SORTER;
 use crate::mounter::{MOUNTERS, MounterItem, MounterItems, MounterKey, MounterMessage};
-use crate::tab::{self, HeadingOptions, ItemMetadata, Location, ScrollDirectio, SearchLocation, Tab};
+use crate::tab::{self, HeadingOptions, ItemMetadata, Location, ScrollDirection, SearchLocation, Tab};
 use crate::zoom::{zoom_in_view, zoom_out_view, zoom_to_default};
 use crate::{fl, home_dir, menu, mime_icon};
 
