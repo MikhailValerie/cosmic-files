@@ -162,7 +162,7 @@ fn button_appearance(
 ) -> widget::button::Style {
     let cosmic = theme.cosmic();
     let mut appearance = widget::button::Style::new();
-    let mut background = Color::TRANSPARENT;
+    let mut background = Color::from(cosmic.bg_color());
     let mut icon_color = Color::from(cosmic.on_bg_component_color());
     let mut text_color = Color::from(cosmic.on_bg_component_color());
 
@@ -174,7 +174,7 @@ fn button_appearance(
             icon_color = Color::from(cosmic.on_accent_color());
             text_color = Color::from(cosmic.on_accent_color());
         }
-        background = background.scale_alpha(0.5);
+        background = background.scale_alpha(0.85);
     }
 
     // Button is selected
@@ -185,7 +185,7 @@ fn button_appearance(
             icon_color = Color::from(cosmic.on_accent_color());
             text_color = Color::from(cosmic.on_accent_color());
         }
-        background = background.scale_alpha(0.4);
+        background = background.scale_alpha(0.75);
     }
 
     // Button is an item on the desktop
@@ -207,6 +207,8 @@ fn button_appearance(
             icon_color = disabled_color;
             text_color = disabled_color;
         }
+        icon_color = icon_color.scale_alpha(0.8);
+        text_color = text_color.scale_alpha(0.8);
         appearance.outline_width = 1.0;
         appearance.outline_color = disabled_color.scale_alpha(0.25);
     }
