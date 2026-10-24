@@ -174,6 +174,7 @@ fn button_appearance(
             icon_color = Color::from(cosmic.on_accent_color());
             text_color = Color::from(cosmic.on_accent_color());
         }
+        background = background.scale_alpha(0.5);
     }
 
     // Button is selected
@@ -184,6 +185,7 @@ fn button_appearance(
             icon_color = Color::from(cosmic.on_accent_color());
             text_color = Color::from(cosmic.on_accent_color());
         }
+        background = background.scale_alpha(0.4);
     }
 
     // Button is an item on the desktop
@@ -247,7 +249,7 @@ fn button_appearance(
         appearance.border_color = Color::from(cosmic.accent_color());
     }
 
-    appearance.border_radius = cosmic.radius_s().into();
+    appearance.border_radius = cosmic.radius_m().into();
     appearance
 }
 
