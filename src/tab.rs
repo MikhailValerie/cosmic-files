@@ -197,11 +197,13 @@ fn button_appearance(
         let disabled_color = Color::from(
             cosmic.background(theme.transparent).component.on_disabled,
         );
-        background = Color::from(
-            cosmic.background(theme.transparent).component.disabled,
-        ).scale_alpha(0.2);
-        icon_color = disabled_color;
-        text_color = disabled_color;
+        if !selected {
+            background = Color::from(
+                cosmic.background(theme.transparent).component.disabled,
+            ).scale_alpha(0.2);
+            icon_color = disabled_color;
+            text_color = disabled_color;
+        }
         icon_color = icon_color.scale_alpha(0.8);
         text_color = text_color.scale_alpha(0.8);
         appearance.outline_width = 1.0;
@@ -5202,7 +5204,11 @@ impl Tab {
         let check_reverse = |ord: Ordering, sort: bool| {
             if sort { ord } else { ord.reverse() }
         };
-        let mut items: Vec<_> = self.items_opt.as_ref()?.iter().enumerate().collect();
+        let mut items: Vec<_> = self.items_opt.as_ref()?
+            .iter()
+            .enumerate()
+            .collect();
+
         let (sort_name, sort_direction, folders_first) = self.sort_options();
         match sort_name {
             HeadingOptions::Size => {
@@ -5466,6 +5472,38 @@ impl Tab {
             icon_bottom,
             count_emblem
         ]))
+    }
+
+    pub fn visible_rect(&self) -> Rectangle {
+
+        // Total size of the viewport
+        let size = self.size_opt.get().unwrap_or_else(|| Size::new(0.0, 0.0));
+
+        // Use cached content height to clamp scroll offset after resize
+        let max_scroll_x = self
+            .content_width_opt
+            .get()
+            .map(|cw| (cw - size.width).max(0.0))
+            .unwrap_or(f32::MAX);
+        let scroll_x = self
+            .scroll_opt
+            .map(|o| o.x.min(max_scroll_x).max(0.0))
+            .unwrap_or(0.0);
+
+        let max_scroll_y = self
+            .content_height_opt
+            .get()
+            .map(|ch| (ch - size.height).max(0.0))
+            .unwrap_or(f32::MAX);
+        let scroll_y = self
+            .scroll_opt
+            .map(|o| o.y.min(max_scroll_y).max(0.0))
+            .unwrap_or(0.0);
+
+        let point = Point::new(scroll_x, scroll_y);
+
+        return Rectangle::new(point, size);
+
     }
 
     pub fn gallery_view(&self) -> Element<'_, Message> {
@@ -6066,83 +6104,309 @@ impl Tab {
         column.into()
     }
 
-    pub fn loading_view(&self) -> Element<'_, Message> {
+    pub fn loading_view(
+        &self,
+    ) -> (
+        Option<Element<'static, Message>>,
+        Element<'_, Message>,
+        Option<ScrollDirection>,
+    ) {
         let cosmic_theme::Spacing {
             space_s,
-            space_xxs,
             ..
         } = theme::spacing();
         let size = self.size_opt.get().unwrap_or_else(|| Size::new(100.0, 100.0));
-        let mut mouse_area = mouse_area::MouseArea::new(
+        let mouse_area = mouse_area::MouseArea::new(
             widget::container(
-                match self.mode {
-                    Mode::App | Mode::Dialog(_) => widget::column::with_children([
-                        widget::icon::from_name("content-loading-symbolic")
-                            .size(64)
-                            .icon()
-                            .into(),
-                        widget::text::body(fl!("loading-items"))
-                        .into(),
-                    ]),
-                    Mode::Desktop => widget::column::with_capacity(0),
-                }
+                widget::column::with_children([
+                    Element::from(widget::indeterminate_circular().size(64.0)),
+                    Element::from(widget::text::body(fl!("loading-items"))),
+                ])
                 .align_x(Alignment::Center)
-                .spacing(space_xxs),
+                .spacing(space_s),
             )
             .center_x(Length::Fill)
             .center_y(Length::Fixed(size.height - (space_s * 2) as f32 - 32.0))
         )
-        .on_press(|_| Message::Click(None));
-        if matches!(self.mode, Mode::Desktop) {
-            mouse_area = mouse_area
-                .on_drag_end(|_| Message::DragEnd)
-                .show_drag_rect(self.mode.multiple())
-                .on_release(|_| Message::ClickRelease(None));
-        }
-        mouse_area.into()
+        .on_press(|_| Message::Click(None))
+        .on_drag_end(|_| Message::DragEnd)
+        .show_drag_rect(self.mode.multiple())
+        .on_release(|_| Message::ClickRelease(None));
+
+        (None, mouse_area.into(), None)
     }
 
-    pub fn empty_view(&self, has_hidden: bool) -> Element<'_, Message> {
+    pub fn empty_view(
+        &self,
+        has_hidden: bool,
+    ) -> (
+        Option<Element<'static, Message>>,
+        Element<'_, Message>,
+        Option<ScrollDirection>,
+    ) {
         let cosmic_theme::Spacing {
             space_s,
             space_xxs,
             ..
         } = theme::spacing();
         let size = self.size_opt.get().unwrap_or_else(|| Size::new(100.0, 100.0));
-        let mut mouse_area = mouse_area::MouseArea::new(
+        let mouse_area = mouse_area::MouseArea::new(
             widget::container(
-                match self.mode {
-                    Mode::App | Mode::Dialog(_) => widget::column::with_children([
-                        widget::icon::from_name("folder-symbolic")
-                            .size(64)
-                            .icon()
-                            .into(),
-                        widget::text::body(if has_hidden {
-                            fl!("empty-folder-hidden")
-                        } else if matches!(self.location, Location::Search(..)) {
-                            fl!("no-results")
-                        } else {
-                            fl!("empty-folder")
-                        })
+                widget::column::with_children([
+                    widget::icon::from_name("folder-symbolic")
+                        .size(64)
+                        .icon()
                         .into(),
-                    ]),
-                    Mode::Desktop => widget::column::with_capacity(0),
-                }
+                    widget::text::body(if has_hidden {
+                        fl!("empty-folder-hidden")
+                    } else if matches!(self.location, Location::Search(..)) {
+                        fl!("no-results")
+                    } else {
+                        fl!("empty-folder")
+                    })
+                    .into(),
+                ])
                 .align_x(Alignment::Center)
                 .spacing(space_xxs),
             )
             .center_x(Length::Fill)
             .center_y(Length::Fixed(size.height - (space_s * 2) as f32 - 32.0))
         )
-        .on_press(|_| Message::Click(None));
-        if matches!(self.mode, Mode::Desktop) {
-            mouse_area = mouse_area
-                .on_drag_end(|_| Message::DragEnd)
-                .show_drag_rect(self.mode.multiple())
-                .on_release(|_| Message::ClickRelease(None));
-        }
-        mouse_area.into()
+        .on_press(|_| Message::Click(None))
+        .on_drag_end(|_| Message::DragEnd)
+        .show_drag_rect(self.mode.multiple())
+        .on_release(|_| Message::ClickRelease(None));
+
+        (None, mouse_area.into(), None)
     }
+
+    // Desktop Mode Only
+    pub fn desktop_view(
+        &self,
+    ) -> (
+        Option<Element<'static, Message>>,
+        Element<'_, Message>,
+        Option<ScrollDirection>,
+    ) {
+
+        if !matches![self.mode, Mode::Desktop] {
+            return self.grid_view();
+        }
+
+        let cosmic_theme::Spacing {
+            space_xxs,
+            space_xxxs,
+            ..
+        } = theme::spacing();
+
+        let TabConfig {
+            show_hidden,
+            mut icon_sizes,
+            ..
+        } = self.config;
+
+        let mut grid_spacing = space_xxs;
+
+        if let Location::Desktop(
+            _path,
+            _output,
+            desktop_config,
+        ) = &self.location {
+            icon_sizes.grid = desktop_config.icon_size;
+            grid_spacing = desktop_config.grid_spacing.into();
+        }
+
+        // Calculate Icon sizes
+        let text_height = 3 * 20; // 3 lines of text
+        let item_width = (3 * space_xxs + icon_sizes.grid() + 3 * space_xxs) as usize;
+        let item_height = (
+            space_xxxs          // Padding (top)
+            + icon_sizes.grid() // Icon
+            + space_xxxs        // Row spacing
+            + text_height       // Text elements
+            + space_xxxs        // Padding (bottom)
+        ) as usize;
+
+        let (width, height) = match self.size_opt.get() {
+            Some(size) => (
+                (size.width.floor() as usize)
+                    .saturating_sub(2 * (space_xxs as usize))
+                    .max(item_width),
+                (size.height.floor() as usize).max(item_height),
+            ),
+            None => (item_width, item_height),
+        };
+
+        let (cols, column_spacing) = {
+            let width_m1 = width.saturating_sub(item_width + space_xxs as usize);
+            let cols_m1 = width_m1 / (item_width + grid_spacing as usize);
+            let cols = cols_m1 + 1;
+            let spacing = width_m1
+                .checked_div(cols_m1)
+                .unwrap_or(0)
+                .saturating_sub(item_width);
+            (cols, spacing as u16)
+        };
+
+        let visible_rect = self.visible_rect();
+        let scroll_offset_rows = visible_rect.y / (item_height + grid_spacing as usize) as f32;
+
+        let mut grid = widget::grid()
+            .column_spacing(column_spacing)
+            .row_spacing(grid_spacing)
+            .padding(space_xxs.into());
+
+        let mut count = 0;
+        let mut drag_item_icons = Vec::new();
+        let mut column = widget::column::with_capacity(2);
+        if let Some(items) = self.column_sort() {
+            for &(i, item) in &items {
+
+                // Don't even count hidden items if not shown
+                if !show_hidden && item.hidden {
+                    item.pos_opt.set(None);
+                    item.rect_opt.set(None);
+                    continue;
+                }
+
+                // Add the item to the drag stack, even if not currently visible
+                if item.selected {
+                    drag_item_icons.push(item.icon_handle_grid.clone());
+                }
+
+                let (col, row) = (count / cols as usize, count % cols as usize);
+
+                // Create a new row in the grid
+                // Skip the content of rows not visible yet due to scrolling (for performance)
+                if col == 0 {
+                    grid = grid.insert_row();
+                }
+
+                count += 1;
+
+                // Add a spacer if the row is empty, so scroll works
+                let mut cell = Element::from(
+                    widget::column::with_capacity(0)
+                        .width(Length::Fill)
+                        .height(Length::Fixed(item_height as f32)),
+                );
+
+                // Only build elements if visible (for performance)
+                item.pos_opt.set(Some((row, col)));
+                let item_rect = Rectangle::new(
+                    Point::new(
+                        (col * (item_width + column_spacing as usize)) as f32,
+                        (row * (item_height + grid_spacing as usize)) as f32,
+                    ),
+                    Size::new(item_width as f32, item_height as f32),
+                );
+                item.rect_opt.set(Some(item_rect));
+                if (row as f32) < scroll_offset_rows || item_rect.intersects(&visible_rect) {
+
+                    let item_icon = widget::icon::icon(item.icon_handle_grid.clone())
+                        .content_fit(ContentFit::Contain)
+                        .size(icon_sizes.grid());
+
+                    let contents = widget::column::with_children([
+                        Element::from(
+                            widget::container(item_icon)
+                                .center_x(Length::Fill)
+                                .max_height(icon_sizes.grid())
+                        ),
+                        Element::from(
+                            widget::container(
+                                Item::grid_display_name(&item.display_name, 3)
+                            )
+                            .center_x(Length::Fill)
+                        ),
+                    ]);
+
+                    let mouse_area = crate::mouse_area::MouseArea::new(
+                        widget::container(
+                            widget::button::custom(contents)
+                                .width(Length::Fixed(item_width as f32))
+                                .class(button_style(
+                                    item.selected,
+                                    item.highlighted,
+                                    item.cut,
+                                    item.hidden,
+                                ))
+                        )
+                    )
+                        .on_press(move |_| Message::Click(Some(i)))
+                        .on_double_click(move |_| Message::DoubleClick(Some(i)))
+                        .on_release(move |_| Message::ClickRelease(Some(i)))
+                        .on_middle_press(move |_| Message::MiddleClick(i))
+                        .on_enter(move || Message::HighlightActivate(i))
+                        .on_exit(move || Message::HighlightDeactivate(i))
+                        .on_right_press_no_capture()
+                        .on_right_press(
+                            move |point_opt| Message::RightClick(point_opt, Some(i)),
+                        );
+
+                    if item.metadata.is_dir() && let Some(location) = item.location_opt.as_ref()
+                    {
+                        cell = self.dnd_dest(location, mouse_area)
+                    } else {
+                        cell = mouse_area.into()
+                    };
+
+                }
+
+                grid = grid.push_with(
+                    cell,
+                    |_|widget::grid::widget::Assignment::from((col as u16, row as u16))
+                );
+            }
+
+            column = column.push(grid);
+
+            //TODO: HACK If we don't reach the bottom of the view, go ahead and add a spacer to do that
+            {
+                let mut max_bottom = 0;
+                for (_, item) in items {
+                    if let Some(rect) = item.rect_opt.get() {
+                        let bottom = (rect.y + rect.height).ceil() as usize;
+                        if bottom > max_bottom {
+                            max_bottom = bottom;
+                        }
+                    }
+                }
+
+                // Cache content height for scroll clamping on next frame
+                self.content_height_opt.set(Some(max_bottom as f32));
+
+                // TODO: Don't have 'magic' number (10) here
+                let top_deduct = 10 * (space_xxs as usize);
+
+                self.item_view_size_opt
+                    .set(self.size_opt.get().map(|s| Size {
+                        width: s.width,
+                        height: s.height - top_deduct as f32,
+                    }));
+
+                let spacer_height = height.saturating_sub(max_bottom + top_deduct);
+                if spacer_height > 0 {
+                    column = column.push(widget::container(
+                        space::vertical().height(Length::Fixed(spacer_height as f32)),
+                    ));
+                }
+            }
+
+        }
+
+        let mouse_area = mouse_area::MouseArea::new(column.width(Length::Fill))
+            .on_press(|_| Message::Click(None))
+            .on_auto_scroll(Message::AutoScroll)
+            .on_drag(move |rect_opt| self.on_drag(rect_opt))
+            .on_drag_end(|_| Message::DragEnd)
+            .show_drag_rect(self.mode.multiple())
+            .on_release(|_| Message::ClickRelease(None));
+
+        // TODO: Have the Scroll Direction match the Workspace Orientation
+        (self.drag_stack(drag_item_icons), mouse_area.into(), Some(ScrollDirection::Vertical))
+    }
+
 
     // Ctrl + 1
     pub fn list_view(
@@ -6171,6 +6435,7 @@ impl Tab {
         }
 
         let size = self.size_opt.get().unwrap_or_else(|| Size::new(0.0, 0.0));
+
         //TODO: allow resizing?
         let name_width = 260.0;
         let modified_width = 160.0;
@@ -6190,35 +6455,16 @@ impl Tab {
 
         let rule_padding = theme::active().cosmic().corner_radii.radius_xs[0] as u16;
 
-        //TODO: move to function
-        let visible_rect = {
-            // Use cached content height to clamp scroll offset after resize
-            let max_scroll_y = self
-                .content_height_opt
-                .get()
-                .map(|ch| (ch - size.height).max(0.0))
-                .unwrap_or(f32::MAX);
-            let scroll_y = self
-                .scroll_opt
-                .map(|o| o.y.min(max_scroll_y).max(0.0))
-                .unwrap_or(0.0);
-            let point = Point::new(0.0, scroll_y);
-            Rectangle::new(point, size)
-        };
+        let visible_rect = self.visible_rect();
 
+        let mut count = 0;
+        let mut hidden = 0;
         let mut drag_item_icons = Vec::new();
         if let Some(items) = self.column_sort() {
-            let mut count = 0;
-            let mut hidden = 0;
+            for &(i, item) in &items {
 
-            // Show empty view instead if no items at all
-            let items_len = items.len();
-            if items_len == 0 {
-                return (None, self.empty_view(false), None);
-            }
-
-            for (i, item) in items {
-                if item.hidden && !show_hidden {
+                // Don't even count hidden items if not shown
+                if !show_hidden && item.hidden {
                     item.pos_opt.set(None);
                     item.rect_opt.set(None);
                     hidden += 1;
@@ -6418,13 +6664,13 @@ impl Tab {
                         .on_release(move |_| Message::ClickRelease(Some(i)))
                         .on_middle_press(move |_| Message::MiddleClick(i))
                         .on_enter(move || Message::HighlightActivate(i))
-                        .on_exit(move || Message::HighlightDeactivate(i));
+                        .on_exit(move || Message::HighlightDeactivate(i))
+                        .on_right_press_no_capture()
+                        .on_right_press(
+                            move |point_opt| Message::RightClick(point_opt, Some(i)),
+                        );
 
                         mouse_area
-                            .on_right_press_no_capture()
-                            .on_right_press(
-                                move |point_opt| Message::RightClick(point_opt, Some(i)),
-                            )
                     };
 
                     let button_row = button(row);
@@ -6450,12 +6696,16 @@ impl Tab {
             }
 
             if count == 0 {
-                return (None, self.empty_view(hidden > 0), None);
+                return self.empty_view(hidden > 0);
             }
 
             // Cache content height for scroll clamping on next frame
             self.content_height_opt.set(Some(y));
         }
+        else {
+            return self.loading_view();
+        }
+
         //TODO: HACK If we don't reach the bottom of the view, go ahead and add a spacer to do that
         {
             let top_deduct = (if condensed || is_search { 6 } else { 9 }) * space_xxs;
@@ -6500,7 +6750,7 @@ impl Tab {
 
         let TabConfig {
             show_hidden,
-            mut icon_sizes,
+            icon_sizes,
             ..
         } = self.config;
 
@@ -6512,13 +6762,7 @@ impl Tab {
             show_starred = true;
         }
 
-        let mut is_desktop = false;
-        let mut grid_spacing = space_xxs;
-        if let Location::Desktop(_path, _output, desktop_config) = &self.location {
-            is_desktop = true;
-            icon_sizes.grid = desktop_config.icon_size;
-            grid_spacing = desktop_config.grid_spacing_for(space_xxs);
-        }
+        let grid_spacing = space_xxs;
 
         // Calculate Icon sizes
         let text_height = 3 * 20; // 3 lines of text
@@ -6552,23 +6796,8 @@ impl Tab {
             (cols, spacing as u16)
         };
 
-        //TODO: move to function
-        let (visible_rect, scroll_offset_rows) = {
-            // Use cached content height to clamp scroll offset after resize
-            let max_scroll_y = self
-                .content_height_opt
-                .get()
-                .map(|ch| (ch - height as f32).max(0.0))
-                .unwrap_or(f32::MAX);
-            let scroll_y = self
-                .scroll_opt
-                .map(|o| o.y.min(max_scroll_y).max(0.0))
-                .unwrap_or(0.0);
-            let point = Point::new(0.0, scroll_y);
-            let size = self.size_opt.get().unwrap_or_else(|| Size::new(0.0, 0.0));
-            let offset_rows = scroll_y / (item_height + grid_spacing as usize) as f32;
-            (Rectangle::new(point, size), offset_rows as usize)
-        };
+        let visible_rect = self.visible_rect();
+        let scroll_offset_rows = visible_rect.y / (item_height + grid_spacing as usize) as f32;
 
         let mut grid = widget::grid()
             .column_spacing(column_spacing)
@@ -6603,31 +6832,12 @@ impl Tab {
                     }
                 }
 
-                let (col, row) = if is_desktop {
-                    (count / cols as usize, count % cols as usize)  // Desktop: row-then-column
-                } else {
-                    (count % cols as usize, count / cols as usize)  // App: column-then-row
-                };
+                let (col, row) = (count % cols as usize, count / cols as usize);
 
                 // Create a new row in the grid
                 // Skip the content of rows not visible yet due to scrolling (for performance)
                 if col == 0 {
                     grid = grid.insert_row();
-
-                    // Only build elements if visible (for performance)
-                    if row < scroll_offset_rows {
-                        let cell = Element::from(
-                            widget::column::with_capacity(0)
-                                .width(Length::Fill)
-                                .height(Length::Fixed(item_height as f32))
-                        );
-
-                        count += 1;
-
-                        grid = grid.push(cell);
-                        continue;
-                    }
-
                 }
 
                 count += 1;
@@ -6636,32 +6846,38 @@ impl Tab {
                 item.pos_opt.set(Some((row, col)));
                 let item_rect = Rectangle::new(
                     Point::new(
-                        (col * (item_width + column_spacing as usize) + space_xxs as usize) as f32,
-                        (row * (item_height + grid_spacing as usize) + space_xxs as usize) as f32,
+                        (col * (item_width + column_spacing as usize)) as f32,
+                        (row * (item_height + grid_spacing as usize)) as f32,
                     ),
                     Size::new(item_width as f32, item_height as f32),
                 );
                 item.rect_opt.set(Some(item_rect));
-                if item_rect.intersects(&visible_rect) {
 
-                    let item_icon = widget::container(
-                        widget::icon::icon(item.icon_handle_grid.clone())
-                            .content_fit(ContentFit::Contain)
-                            .size(icon_sizes.grid())
-                    );
+                // Add a spacer if the row is empty, so scroll works
+                let mut cell = Element::from(
+                    widget::column::with_capacity(0)
+                        .width(Length::Fill)
+                        .height(Length::Fixed(item_height as f32)),
+                );
+
+                if (row as f32) < scroll_offset_rows || item_rect.intersects(&visible_rect) {
+
+                    let item_icon = widget::icon::icon(item.icon_handle_grid.clone())
+                        .content_fit(ContentFit::Contain)
+                        .size(icon_sizes.grid());
+
                     let mut emblems = vec![];
 
                     if show_starred {
                         if item.starred {
                             emblems.push(
                                 widget::layer_container(
-                                    widget::tooltip(
-                                        widget::button::icon(widget::icon::from_name("starred-symbolic").size(16))
-                                            .on_press(Message::RemoveFromStarred(item_path_vec))
-                                            .padding(2),
-                                        widget::text::body(fl!("remove-from-starred")),
-                                        widget::tooltip::Position::Bottom,
+                                    widget::button::icon(
+                                        widget::icon::from_name("starred-symbolic").size(16)
                                     )
+                                    .tooltip(fl!("remove-from-starred"))
+                                    .on_press(Message::RemoveFromStarred(item_path_vec))
+                                    .padding(2)
                                 )
                                 .into()
                             )
@@ -6669,13 +6885,12 @@ impl Tab {
                         else if item.highlighted {
                             emblems.push(
                                 widget::layer_container(
-                                    widget::tooltip(
-                                        widget::button::icon(widget::icon::from_name("non-starred-symbolic").size(16))
-                                            .on_press(Message::AddToStarred(item_path_vec))
-                                            .padding(2),
-                                        widget::text::body(fl!("add-to-starred")),
-                                        widget::tooltip::Position::Bottom,
+                                    widget::button::icon(
+                                        widget::icon::from_name("non-starred-symbolic").size(16)
                                     )
+                                    .tooltip(fl!("add-to-starred"))
+                                    .on_press(Message::AddToStarred(item_path_vec))
+                                    .padding(2)
                                 )
                                 .into()
                             )
@@ -6690,118 +6905,105 @@ impl Tab {
                     .width(Length::Fixed(item_width as f32));
 
                     let contents = widget::column::with_children([
-                        Element::from(widget::container(item_icon)
-                            .center_x(Length::Fill)
-                            .max_height(icon_sizes.grid())
+                        Element::from(
+                            widget::container(item_icon)
+                                .center_x(Length::Fill)
+                                .max_height(icon_sizes.grid())
                         ),
                         Element::from(
-                            widget::container(widget::tooltip(
-                                Item::grid_display_name(&item.display_name, 3),
-                                widget::text::body(&item.display_name),
-                                widget::tooltip::Position::FollowCursor,
-                            ))
+                            widget::container(
+                                Item::grid_display_name(&item.display_name, 3)
+                            )
                             .center_x(Length::Fill)
                         ),
                     ]);
 
-                    let contents = stack![
+                    let content_stack = stack![
                         contents,
                         item_emblems,
                     ];
-                    let button = |contents| {
-                        let mouse_area = crate::mouse_area::MouseArea::new(
-                            widget::container(
-                                widget::button::custom(contents)
-                                    .id(item.button_id.clone())
-                                    .height(Length::Shrink)
-                                    .width(Length::Fixed(item_width as f32))
-                                    .padding(0)
-                                    .class(button_style(
-                                        item.selected,
-                                        item.highlighted,
-                                        item.cut,
-                                        item.hidden,
-                                    )),
-                            )
-                            .height(Length::Fixed(item_height as f32))
+
+                    let mouse_area = crate::mouse_area::MouseArea::new(
+                        widget::container(
+                            widget::button::custom(content_stack)
+                                .width(Length::Fixed(item_width as f32))
+                                .class(button_style(
+                                    item.selected,
+                                    item.highlighted,
+                                    item.cut,
+                                    item.hidden,
+                                ))
                         )
+                    )
                         .on_press(move |_| Message::Click(Some(i)))
                         .on_double_click(move |_| Message::DoubleClick(Some(i)))
                         .on_release(move |_| Message::ClickRelease(Some(i)))
                         .on_middle_press(move |_| Message::MiddleClick(i))
                         .on_enter(move || Message::HighlightActivate(i))
-                        .on_exit(move || Message::HighlightDeactivate(i));
+                        .on_exit(move || Message::HighlightDeactivate(i))
+                        .on_right_press_no_capture()
+                        .on_right_press(
+                            move |point_opt| Message::RightClick(point_opt, Some(i)),
+                        );
 
-                        mouse_area
-                            .on_right_press_no_capture()
-                            .on_right_press(
-                                move |point_opt| Message::RightClick(point_opt, Some(i)),
-                            )
-                    };
-
-                    let container = button(contents);
-                    let cell: Element<Message> = if item.metadata.is_dir()
+                    if item.metadata.is_dir()
                         && let Some(location) = item.location_opt.as_ref()
                     {
-                        self.dnd_dest(location, container)
+                        cell = self.dnd_dest(location, mouse_area)
                     } else {
-                        container.into()
+                        cell = mouse_area.into()
                     };
 
-                    grid = grid.push(cell);
                 }
-                
-                // Add a spacer if the row is empty, so scroll works
-                else {
-                    let cell = Element::from(
-                        widget::column::with_capacity(0)
-                            .width(Length::Fill)
-                            .height(Length::Fixed(item_height as f32)),
-                    );
-                    grid = grid.push(cell);
-                }
+
+                grid = grid.push_with(
+                    cell,
+                    |_|widget::grid::widget::Assignment::from((col as u16, row as u16))
+                );
 
             }
 
             column = column.push(grid);
 
-            // //TODO: HACK If we don't reach the bottom of the view, go ahead and add a spacer to do that
-            // {
-            //     let mut max_bottom = 0;
-            //     for (_, item) in items {
-            //         if let Some(rect) = item.rect_opt.get() {
-            //             let bottom = (rect.y + rect.height).ceil() as usize;
-            //             if bottom > max_bottom {
-            //                 max_bottom = bottom;
-            //             }
-            //         }
-            //     }
+            //TODO: HACK If we don't reach the bottom of the view, go ahead and add a spacer to do that
+            {
+                let mut max_bottom = 0;
+                for (_, item) in items {
+                    if let Some(rect) = item.rect_opt.get() {
+                        let bottom = (rect.y + rect.height).ceil() as usize;
+                        if bottom > max_bottom {
+                            max_bottom = bottom;
+                        }
+                    }
+                }
 
-            //     // Cache content height for scroll clamping on next frame
-            //     self.content_height_opt.set(Some(max_bottom as f32));
+                // Cache content height for scroll clamping on next frame
+                self.content_height_opt.set(Some(max_bottom as f32));
 
-            //     // TODO: Don't have 'magic' number (10) here
-            //     let top_deduct = 10 * (space_xxs as usize);
+                // TODO: Don't have 'magic' number (10) here
+                let top_deduct = 10 * (space_xxs as usize);
 
-            //     self.item_view_size_opt
-            //         .set(self.size_opt.get().map(|s| Size {
-            //             width: s.width,
-            //             height: s.height - top_deduct as f32,
-            //         }));
+                self.item_view_size_opt
+                    .set(self.size_opt.get().map(|s| Size {
+                        width: s.width,
+                        height: s.height - top_deduct as f32,
+                    }));
 
-            //     let spacer_height = height.saturating_sub(max_bottom + top_deduct);
-            //     if spacer_height > 0 {
-            //         column = column.push(widget::container(
-            //             space::vertical().height(Length::Fixed(spacer_height as f32)),
-            //         ));
-            //     }
-            // }
+                let spacer_height = height.saturating_sub(max_bottom + top_deduct);
+                if spacer_height > 0 {
+                    column = column.push(widget::container(
+                        space::vertical().height(Length::Fixed(spacer_height as f32)),
+                    ));
+                }
+            }
+
+            if count == 0 {
+                return self.empty_view(hidden > 0);
+            }
 
         }
-
-        // 
-        if count == 0 {
-            return (None, self.empty_view(hidden > 0), None);
+        else {
+            return self.loading_view();
         }
 
         let mouse_area = mouse_area::MouseArea::new(column.width(Length::Fill))
@@ -6824,6 +7026,7 @@ impl Tab {
         Option<ScrollDirection>,
     ) {
         let cosmic_theme::Spacing {
+            space_xxs,
             space_xxxs,
             ..
         } = theme::spacing();
@@ -6842,64 +7045,36 @@ impl Tab {
             show_starred = true;
         }
 
+        // Calculate Icon sizes
         let grid_spacing = space_xxxs;
-        let icon_size = icon_sizes.column().max(30); // Prevent icons getting too small
+        let icon_size = icon_sizes.column().max(24); // Prevent icons getting FnOnce(&mut assignment)too small
         let item_width = (140 + grid_spacing + icon_size + grid_spacing) as usize;
         let item_height = ((space_xxxs/2).max(1) as u16 + icon_size + (space_xxxs/2).max(1) as u16) as usize;
 
-        let (width, height) = match self.size_opt.get() {
+        let (_width, height) = match self.size_opt.get() {
             Some(size) => (
                 (size.width.floor() as usize)
+                    .saturating_sub(2 * (space_xxs as usize))
                     .max(item_width),
-                (size.height.floor() as usize)
-                    .saturating_sub(2 * (grid_spacing as usize))
-                    .max(item_height),
+                (size.height.floor() as usize).max(item_height),
             ),
             None => (item_width, item_height),
         };
 
-        //TODO: move to function
-        let visible_rect = {
-            // Use cached content width to clamp scroll offset after resize
-            let max_scroll_x = self
-                .content_width_opt
-                .get()
-                .map(|cw| (cw - width as f32).max(0.0))
-                .unwrap_or(f32::MAX);
-            let scroll_x = self
-                .scroll_opt
-                .map(|o| o.x.min(max_scroll_x).max(0.0))
-                .unwrap_or(0.0);
-            let point = Point::new(scroll_x, 0.0);
-            let size = self.size_opt.get().unwrap_or_else(|| Size::new(0.0, 0.0));
-            Rectangle::new(point, size)
-        };
+        let rows = height.saturating_sub(grid_spacing as usize) / (item_height + (grid_spacing * 2) as usize);
+        let visible_rect = self.visible_rect();
+        let scroll_offset_cols = visible_rect.x / (item_width + grid_spacing as usize) as f32;
 
-        let mut column = widget::column::with_capacity(2);
+        let mut grid = widget::grid()
+            .column_spacing(grid_spacing)
+            .row_spacing(grid_spacing)
+            .padding(space_xxs.into());
+
+        let mut count = 0;
+        let mut hidden = 0;
         let mut drag_item_icons = Vec::new();
+        let mut column = widget::column::with_capacity(2);
         if let Some(items) = self.column_sort() {
-            let mut count = 0;
-            let mut hidden = 0;
-
-            // Show empty view instead if no items at all
-            let items_len = items.len();
-            if items_len == 0 {
-                return (None, self.empty_view(false), None);
-            }
-
-            // TODO: Don't load into grid_elements, load into list then push into grid
-            //       The hidden items are problematic
-            // Pre-allocate the grid of items
-            let rows = {
-                let height_m1 = height.saturating_sub(item_height);
-                let rows_m1 = height_m1 / (item_height + grid_spacing as usize);
-                rows_m1.max(1)
-            };
-            
-            // TODO: Load grid content asynchronously, starting with the current view
-
-            let mut item_elements = Vec::<Element<Message>>::new();
-
             for &(i, item) in &items {
 
                 // Don't even count hidden items if not shown
@@ -6910,178 +7085,201 @@ impl Tab {
                     continue;
                 }
 
+                // Mark the position in the content grid
+                let (col, row) = (count / rows as usize, count % rows as usize);
+                if col == 0 {
+                    grid = grid.insert_row();
+                }
+                count += 1;
+
+                let mut item_path_vec = Vec::new();
+
                 // Add the item to the drag stack, even if not currently visible
-                if item.selected && !self.location.is_recents() {
+                if item.selected {
                     drag_item_icons.push(item.icon_handle_grid.clone());
                 }
 
-                // Collect paths of starred items to batch process, even if not visible
-                let mut item_path_vec = Vec::new();
-                if show_starred {
-                    if let Some(path) = item.path_opt() {
-                        item_path_vec.push(path.to_path_buf());
-                    }
-                }
+                // Add a spacer if the row is empty, so scroll works
+                let mut cell = Element::from(
+                    widget::column::with_capacity(0)
+                        .width(Length::Fixed(item_width as f32))
+                        .height(Length::Fixed(item_height as f32)),
+                );
 
-                let col = (count / rows) as usize;
-                let row = (count % rows) as usize;
-
-                // Skip writing contents for items outside the visible viewport
+                // Only build elements if visible (for performance)
                 item.pos_opt.set(Some((row, col)));
                 let item_rect = Rectangle::new(
                     Point::new(
-                        (col * (item_width + grid_spacing as usize) + grid_spacing as usize) as f32,
-                        (row * (item_height + grid_spacing as usize) + grid_spacing as usize) as f32,
+                        (col * (item_width + grid_spacing as usize)) as f32,
+                        (row * (item_height + grid_spacing as usize)) as f32,
                     ),
                     Size::new(item_width as f32, item_height as f32),
                 );
                 item.rect_opt.set(Some(item_rect));
-                if !item_rect.intersects(&visible_rect) {
-                    // Add an empty spacer so scroll works
-                    let empty_cell: Element<Message> = widget::column::with_children([])
-                        .align_x(Alignment::Center)
-                        .height(Length::Fixed(item_height as f32))
-                        .width(Length::Fixed(item_width as f32))
-                        .into();
-                    item_elements.push(empty_cell);
-                    count += 1;
-                    continue;
-                }
 
-                let mut emblems = vec![];
-                if show_starred {
-                    if item.starred {
-                        emblems.push(
-                            widget::button::icon(
-                                widget::icon::from_name("starred-symbolic")
-                                .size(16)
-                            )
-                            .on_press(Message::RemoveFromStarred(item_path_vec))
-                            .tooltip(fl!("remove-from-starred"))
-                            .padding([(space_xxxs/2).max(1) as u16 + 2,space_xxxs])
-                            .into()
-                        )
+                if (col as f32) < scroll_offset_cols || item_rect.intersects(&visible_rect) {
+
+                    // Collect paths of starred items to batch process, even if not visible
+                    if show_starred {
+                        if let Some(path) = item.path_opt() {
+                            item_path_vec.push(path.to_path_buf());
+                        }
                     }
-                    else if item.highlighted {
-                        emblems.push(
-                            widget::button::icon(
-                                widget::icon::from_name("non-starred-symbolic")
-                                .size(16)
+
+                    let item_icon = widget::icon::icon(item.icon_handle_column.clone())
+                        .content_fit(ContentFit::Contain)
+                        .size(icon_sizes.column());
+
+                    let mut emblems = vec![];
+
+                    if show_starred {
+                        if item.starred {
+                            emblems.push(
+                                widget::layer_container(
+                                    widget::button::icon(
+                                        widget::icon::from_name("starred-symbolic").size(16)
+                                    )
+                                    .tooltip(fl!("remove-from-starred"))
+                                    .on_press(Message::RemoveFromStarred(item_path_vec))
+                                    .padding(2)
+                                )
+                                .into()
                             )
-                            .on_press(Message::AddToStarred(item_path_vec))
-                            .tooltip(fl!("add-to-starred"))
-                            .padding([(space_xxxs/2).max(1) as u16 + 2,space_xxxs])
-                            .into()
-                        )
+                        }
+                        else if item.highlighted {
+                            emblems.push(
+                                // TODO: Set background colour
+                                widget::layer_container(
+                                    widget::button::icon(
+                                        widget::icon::from_name("non-starred-symbolic").size(16)
+                                    )
+                                    .tooltip(fl!("add-to-starred"))
+                                    .on_press(Message::AddToStarred(item_path_vec))
+                                    .padding(2)
+                                )
+                                .into()
+                            )
+                        }
                     }
-                }
-                let item_emblems = widget::container(
-                    widget::column::with_children(emblems)
-                )
-                .align_right(Length::Fill)
-                .align_top(Length::Fill)
-                .width(Length::Fixed(width as f32));
 
-                let contents = widget::row::with_children([
-                    widget::container(
-                        widget::icon::icon(item.icon_handle_column.clone())
-                            .content_fit(ContentFit::Contain)
-                            .size(icon_size)
+                    let item_emblems = widget::container(
+                        widget::column::with_children(emblems)
                     )
-                    .align_x(Alignment::Center)
-                    .align_y(Alignment::Center)
-                    .height(Length::Fixed(item_height as f32))
-                    .width(Length::Fixed(icon_size as f32))
-                    .padding(padding::right(space_xxxs))
-                    .into(),
-                    Element::from(
-                        widget::container(widget::tooltip(
-                            Item::column_display_name(&item.display_name),
-                            widget::text::body(&item.name),
-                            widget::tooltip::Position::Bottom,
-                        ))
-                        .align_y(Alignment::Center)
-                        .width(Length::Fill)
-                    ),
-                ])
-                .height(Length::Fill)
-                .width(width as f32)
-                .align_y(Alignment::Center);
-
-                let contents = stack![
-                    contents,
-                    item_emblems,
-                ];
-                let button = |contents| {
-                    let mouse_area = crate::mouse_area::MouseArea::new(
-                        widget::button::custom(contents)
-                            .width(Length::Fill)
-                            .id(item.button_id.clone())
-                            .class(button_style(
-                                item.selected,
-                                item.highlighted,
-                                item.cut,
-                                item.hidden,
-                            )),
-                    )
-                    .on_press(move |_| Message::Click(Some(i)))
-                    .on_double_click(move |_| Message::DoubleClick(Some(i)))
-                    .on_release(move |_| Message::ClickRelease(Some(i)))
-                    .on_middle_press(move |_| Message::MiddleClick(i))
-                    .on_enter(move || Message::HighlightActivate(i))
-                    .on_exit(move || Message::HighlightDeactivate(i));
-
-                    mouse_area
-                };
-
-                let cell = widget::column::with_children([button(contents).into()])
-                    .align_x(Alignment::Center)
-                    .height(Length::Fixed(item_height as f32))
+                    .align_right(Length::Fill)
+                    .align_top(Length::Fill)
                     .width(Length::Fixed(item_width as f32));
-                let cell: Element<Message> =
-                    if item.metadata.is_dir() && item.location_opt.is_some() {
-                        self.dnd_dest(&item.location_opt.clone().unwrap(), cell)
+
+                    let contents = widget::row::with_children([
+                        Element::from(
+                            widget::container(item_icon)
+                                .center_x(Length::Shrink)
+                                .center_y(Length::Fill)
+                                .max_height(icon_sizes.column())
+                        ),
+                        Element::from(
+                            widget::container(Item::column_display_name(&item.display_name))
+                                .align_left(Length::Fill)
+                                .align_y(Alignment::Center)
+                                .height(Length::Fixed(item_height as f32))
+                        ),
+                    ]);
+
+                    let content_stack = stack![
+                        contents,
+                        item_emblems,
+                    ];
+
+                    let mouse_area = crate::mouse_area::MouseArea::new(
+                        widget::container(
+                            widget::button::custom(content_stack)
+                                .height(Length::Fixed(item_height as f32))
+                                .width(Length::Fixed(item_width as f32))
+                                .class(button_style(
+                                    item.selected,
+                                    item.highlighted,
+                                    item.cut,
+                                    item.hidden,
+                                ))
+                        )
+                    )
+                        .on_press(move |_| Message::Click(Some(i)))
+                        .on_double_click(move |_| Message::DoubleClick(Some(i)))
+                        .on_release(move |_| Message::ClickRelease(Some(i)))
+                        .on_middle_press(move |_| Message::MiddleClick(i))
+                        .on_enter(move || Message::HighlightActivate(i))
+                        .on_exit(move || Message::HighlightDeactivate(i))
+                        .on_right_press_no_capture()
+                        .on_right_press(
+                            move |point_opt| Message::RightClick(point_opt, Some(i)),
+                        );
+
+                    if item.metadata.is_dir() && let Some(location) = item.location_opt.as_ref()
+                    {
+                        cell = self.dnd_dest(location, mouse_area)
                     } else {
-                        cell.into()
+                        cell = mouse_area.into()
                     };
-                item_elements.push(cell);
 
-                count += 1;
+                }
 
+                grid = grid.push_with(
+                    cell,
+                    |_|widget::grid::widget::Assignment::from((col as u16, row as u16))
+                );
             }
 
-            // Show empty view if no visible items at all
+            column = column.push(grid);
+
+            //TODO: HACK If we don't reach the bottom of the view, go ahead and add a spacer to do that
+            {
+                let mut max_bottom = 0;
+                for (_, item) in items {
+                    if let Some(rect) = item.rect_opt.get() {
+                        let bottom = (rect.y + rect.height).ceil() as usize;
+                        if bottom > max_bottom {
+                            max_bottom = bottom;
+                        }
+                    }
+                }
+
+                // Cache content height for scroll clamping on next frame
+                self.content_height_opt.set(Some(max_bottom as f32));
+
+                // TODO: Don't have 'magic' number (10) here
+                let top_deduct = 10 * (space_xxs as usize);
+
+                self.item_view_size_opt
+                    .set(self.size_opt.get().map(|s| Size {
+                        width: s.width,
+                        height: s.height - top_deduct as f32,
+                    }));
+
+                let spacer_height = height.saturating_sub(max_bottom + top_deduct);
+                if spacer_height > 0 {
+                    column = column.push(widget::container(
+                        space::vertical().height(Length::Fixed(spacer_height as f32)),
+                    ));
+                }
+            }
+
             if count == 0 {
-                return (None, self.empty_view(hidden > 0), None);
+                return self.empty_view(hidden > 0);
             }
 
-            column = column.push(
-                widget::column::with_children(item_elements)
-                    .spacing(1.0)
-                    .wrap()
-                    .horizontal_spacing(space_xxxs)
-            );
         }
         else {
-            return (None, self.loading_view(), None);
+            return self.loading_view();
         }
 
-        let mouse_area = mouse_area::MouseArea::new(
-            column
-                .height(Length::Fill)
-                .width(Length::Fill)
-        )
+        let mouse_area = mouse_area::MouseArea::new(column.width(Length::Fill))
             .on_press(|_| Message::Click(None))
             .on_auto_scroll(Message::AutoScroll)
+            .on_drag(move |rect_opt| self.on_drag(rect_opt))
             .on_drag_end(|_| Message::DragEnd)
             .show_drag_rect(self.mode.multiple())
             .on_release(|_| Message::ClickRelease(None));
 
-        return (
-            self.drag_stack(drag_item_icons),
-            mouse_area.into(),
-            Some(ScrollDirection::Horizontal)
-        );
+        (self.drag_stack(drag_item_icons), mouse_area.into(), Some(ScrollDirection::Horizontal))
     }
 
     pub fn view_responsive<'a>(
@@ -7108,11 +7306,17 @@ impl Tab {
         } else {
             Some(self.location_view())
         };
-        let (drag_list, mut item_view, scroll_dir) = match self.config.view {
-            View::Grid => self.grid_view(),
-            View::List => self.list_view(),
-            View::Column => self.column_view(),
+
+        let (drag_list, mut item_view, _scroll_dir) = if matches![self.mode, Mode::Desktop] {
+            self.desktop_view()
+        } else {
+            match self.config.view {
+                View::Grid => self.grid_view(),
+                View::List => self.list_view(),
+                View::Column => self.column_view(),
+            }
         };
+
         item_view = widget::container(item_view).width(Length::Fill).into();
         let files = self
             .items_opt
@@ -7130,6 +7334,7 @@ impl Tab {
                     .collect::<Box<[PathBuf]>>()
             })
             .unwrap_or_default();
+
         let item_view =
             DndSource::<Message, ClipboardCopy>::with_id(item_view, Id::new("tab-view"));
 
@@ -7274,18 +7479,18 @@ impl Tab {
                     tab_column = tab_column.push(
                         widget::layer_container(widget::row::with_children([
                             Element::from(widget::container(
-                                widget::column::with_children([
-                                    Element::from(widget::text::body(
-                                        fl!("files-count", count = file_count)
-                                    )),
+                                widget::row::with_children([
                                     Element::from(widget::text::body(
                                         fl!("dirs-count", count = dir_count)
                                     )),
+                                    Element::from(widget::text::body(
+                                        fl!("files-count", count = file_count)
+                                    )),
                                 ])
+                                .spacing(space_xs)
                             )
-                            .height(Length::Fill)
-                            .align_y(Alignment::Center)
-                            .width(Length::Fixed(120.0))),
+                            .center_y(Length::Fixed(24.0))
+                            .width(Length::Shrink)),
                             widget::space::horizontal().into(),
                             Element::from(widget::container(
                                 widget::button::standard(fl!("clear-recents-history"))
